@@ -1121,7 +1121,6 @@ npm run build
     // Fallback seguro: gera o backup completo de arquitetura e código em formato JSON
     return downloadArchitectureBackup();
   };
-
   const importDatabaseJson = (jsonString: string, originalFilename?: string, fileSize?: number): boolean => {
     try {
       const data = JSON.parse(jsonString);
