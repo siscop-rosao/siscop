@@ -1,6 +1,0 @@
-{
-  "name": "Praça de Esportes Pouso Alegre - GDA & GID",
-  "description": "Sistema de Gestão de Documentos de Acesso (GDA) e Informações Diversas (GID) da Praça de Esportes Pref. Alvarim Vieira Rios - Pouso Alegre/MG.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
