@@ -25,6 +25,7 @@ import {
   DEFAULT_PLATFORM_SETTINGS,
   generateDefaultPaymentGrid,
 } from '../data/initialData';
+import JSZip from 'jszip';
 
 export const formatBackupFilename = (prefix = 'Backup_DataBase'): string => {
   const now = new Date();
@@ -140,7 +141,7 @@ interface AppContextType {
   exportArchitectureJson: () => { filename: string; json: string };
   downloadDatabaseBackup: () => string;
   downloadArchitectureBackup: () => string;
-  downloadProjectZipBackup: (onProgress?: (percent: number, message: string) => void) => Promise<string>;
+  downloadProjectZipBackup: () => Promise<string>;
   importDatabaseJson: (jsonString: string, originalFilename?: string, fileSize?: number) => boolean;
   resetAllToFactoryDefaults: () => void;
   lastGeneratedBackup: BackupGenerationRecord | null;
@@ -1093,34 +1094,64 @@ npm run build
     return filename;
   };
 
-  const downloadProjectZipBackup = async (onProgress?: (percent: number, message: string) => void): Promise<string> => {
+  const downloadProjectZipBackup = async (): Promise<string> => {
     try {
-      // Import dinâmico seguro para evitar quebra de compilação caso o arquivo não esteja no repositório
-      const zipModule = await import('../utils/zipExporter');
-      if (zipModule && typeof zipModule.downloadProjectZip === 'function') {
-        const filename = await zipModule.downloadProjectZip(onProgress);
-        recordGeneratedBackup({
-          filename,
-          type: 'ZIP',
-          typeLabel: 'Baixar Código-Fonte Completo (.ZIP)',
-          timestamp: new Date().toISOString(),
-          recordsCount: {
-            cards: cards.length,
-            reservations: reservations.length,
-            popProcedures: popProcedures.length,
-            logs: logs.length,
-            users: users.length,
-          },
-        });
-        addLog('EXPORTAR_BACKUP_ZIP', 'SISTEMA', `Exportou código-fonte completo compactado em ZIP: ${filename}`);
-        return filename;
-      }
+      const zip = new JSZip();
+      const { filename: dbFilename, json: dbJson } = exportDatabaseJson();
+      const { filename: archFilename, json: archJson } = exportArchitectureJson();
+
+      zip.file(dbFilename, dbJson);
+      zip.file(archFilename, archJson);
+      zip.file(
+        'LEIA-ME.txt',
+        'SISCOP - Sistema de Controle Operacional\nPraça de Esportes Pref. Alvarim Vieira Rios - Pouso Alegre/MG\nBackup Oficial da Base de Dados e Arquitetura do Sistema.\n'
+      );
+
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const dateStr = `${pad(now.getDate())}${pad(now.getMonth() + 1)}${String(now.getFullYear()).slice(-2)}`;
+      const timeStr = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}h`;
+      const zipFilename = `Backup_Completo_SISCOP_${dateStr}_${timeStr}.zip`;
+
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = zipFilename;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        try {
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        } catch {
+          // ignore
+        }
+      }, 2000);
+
+      recordGeneratedBackup({
+        filename: zipFilename,
+        type: 'ZIP',
+        typeLabel: 'Baixar Pacote de Backup (.ZIP)',
+        timestamp: new Date().toISOString(),
+        sizeBytes: blob.size,
+        recordsCount: {
+          cards: cards.length,
+          reservations: reservations.length,
+          popProcedures: popProcedures.length,
+          logs: logs.length,
+          users: users.length,
+        },
+      });
+
+      addLog('EXPORTAR_BACKUP_ZIP', 'SISTEMA', `Exportou pacote compactado em ZIP: ${zipFilename}`);
+      return zipFilename;
     } catch (err) {
-      console.warn('zipExporter não encontrado ou falhou ao empacotar, usando fallback JSON:', err);
+      console.warn('Falha ao gerar ZIP, usando fallback JSON:', err);
+      return downloadArchitectureBackup();
     }
-    // Fallback seguro: gera o backup completo de arquitetura e código em formato JSON
-    return downloadArchitectureBackup();
   };
+
   const importDatabaseJson = (jsonString: string, originalFilename?: string, fileSize?: number): boolean => {
     try {
       const data = JSON.parse(jsonString);
