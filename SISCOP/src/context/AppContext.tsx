@@ -26,6 +26,14 @@ import {
   generateDefaultPaymentGrid,
 } from '../data/initialData';
 import JSZip from 'jszip';
+import appContextSelfRaw from './AppContext.tsx?raw';
+import {
+  syncCardToFirestore,
+  deleteCardFromFirestore,
+  syncReservationToFirestore,
+  subscribeToCards,
+  subscribeToReservations,
+} from '../services/firestoreSync';
 
 export const formatBackupFilename = (prefix = 'Backup_DataBase'): string => {
   const now = new Date();
@@ -37,6 +45,24 @@ export const formatBackupFilename = (prefix = 'Backup_DataBase'): string => {
   const ss = String(now.getSeconds()).padStart(2, '0');
   return `${prefix}_${dd}${mm}${aa}_${hh}${min}${ss}h.json`;
 };
+
+// Carrega como texto puro todos os arquivos do projeto para geração de .ZIP real com pastas
+const allProjectFiles = import.meta.glob(
+  [
+    '/src/**/*',
+    '/package.json',
+    '/tsconfig.json',
+    '/vite.config.ts',
+    '/index.html',
+    '/vercel.json',
+    '/firebase.json',
+    '/firebase-applet-config.json',
+    '/firestore.rules',
+    '/.npmrc',
+    '/.gitignore',
+  ],
+  { query: '?raw', import: 'default', eager: true }
+) as Record<string, string>;
 
 export const formatFileSize = (bytes?: number): string => {
   if (!bytes || bytes <= 0) return '0 KB';
@@ -436,6 +462,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [platformSettings]);
 
+  // Sincronização em tempo real com o Cloud Firestore
+  useEffect(() => {
+    try {
+      const unsubCards = subscribeToCards((remoteCards) => {
+        if (remoteCards.length > 0) {
+          setCards(remoteCards);
+        }
+      });
+
+      const unsubRes = subscribeToReservations((remoteRes) => {
+        if (remoteRes.length > 0) {
+          setReservations(remoteRes);
+        }
+      });
+
+      return () => {
+        unsubCards();
+        unsubRes();
+      };
+    } catch (e) {
+      console.warn('Falha ao inicializar conexão Firestore:', e);
+    }
+  }, []);
+
   // Log Generator
   const addLog = (
     action: ActionType,
@@ -593,6 +643,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setCards((prev) => [newCard, ...prev]);
+    syncCardToFirestore(newCard);
     addLog(
       'CRIAR_USUARIO_GID',
       'GID_USUARIOS',
@@ -642,6 +693,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setCards((prev) => [...prev, newDep]);
+    syncCardToFirestore(newDep);
     addLog(
       'CRIAR_USUARIO_GID',
       'GID_USUARIOS',
@@ -665,6 +717,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             updatedAt: new Date().toISOString(),
             lastEditedBy: currentUser?.name || c.lastEditedBy || 'Carlos Alberto',
           };
+          syncCardToFirestore(updated);
           return updated;
         }
         return c;
@@ -691,6 +744,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteCard = (id: string) => {
     const target = cards.find((c) => c.id === id);
     setCards((prev) => prev.filter((c) => c.id !== id && c.familyHeadId !== id));
+    deleteCardFromFirestore(id);
     addLog(
       'EXCLUIR_USUARIO_GID',
       'GID_USUARIOS',
@@ -756,6 +810,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedAt: new Date().toISOString(),
     };
     setReservations((prev) => [newRes, ...prev]);
+    syncReservationToFirestore(newRes);
     addLog(
       'RESERVA_CHURRASQUEIRA',
       'GID_CHURRASQUEIRA',
@@ -1097,23 +1152,42 @@ npm run build
   const downloadProjectZipBackup = async (): Promise<string> => {
     try {
       const zip = new JSZip();
+
+      // 1. Adiciona todos os arquivos de código-fonte reais em suas respectivas pastas
+      for (const [rawPath, content] of Object.entries(allProjectFiles)) {
+        if (typeof content === 'string') {
+          const cleanPath = rawPath.startsWith('/') ? rawPath.slice(1) : rawPath;
+          zip.file(cleanPath, content);
+        }
+      }
+
+      // 2. Garante explicitamente a inclusão de src/context/AppContext.tsx na pasta context
+      zip.file('src/context/AppContext.tsx', appContextSelfRaw);
+
+      // 3. Adiciona snapshot da base de dados e manifesto em pasta backup/
       const { filename: dbFilename, json: dbJson } = exportDatabaseJson();
       const { filename: archFilename, json: archJson } = exportArchitectureJson();
+      zip.file(`backup/${dbFilename}`, dbJson);
+      zip.file(`backup/${archFilename}`, archJson);
 
-      zip.file(dbFilename, dbJson);
-      zip.file(archFilename, archJson);
+      // 3. Adiciona README explicativo
       zip.file(
-        'LEIA-ME.txt',
-        'SISCOP - Sistema de Controle Operacional\nPraça de Esportes Pref. Alvarim Vieira Rios - Pouso Alegre/MG\nBackup Oficial da Base de Dados e Arquitetura do Sistema.\n'
+        'README.md',
+        `# SISCOP - Sistema de Controle Operacional\nPraça de Esportes Pref. Alvarim Vieira Rios • Pouso Alegre - MG\n\nCódigo-fonte completo pronto para envio ao GitHub ou execução local com 'npm install' e 'npm run dev'.\n`
       );
 
       const now = new Date();
       const pad = (n: number) => String(n).padStart(2, '0');
       const dateStr = `${pad(now.getDate())}${pad(now.getMonth() + 1)}${String(now.getFullYear()).slice(-2)}`;
       const timeStr = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}h`;
-      const zipFilename = `Backup_Completo_SISCOP_${dateStr}_${timeStr}.zip`;
+      const zipFilename = `SISCOP_Codigo_Fonte_Completo_${dateStr}_${timeStr}.zip`;
 
-      const blob = await zip.generateAsync({ type: 'blob' });
+      const blob = await zip.generateAsync({
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 },
+      });
+
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
