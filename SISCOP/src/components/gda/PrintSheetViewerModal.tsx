@@ -598,12 +598,12 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
             minHeight: '678px',
           }}
         >
-          {/* 4 Colunas Verticais com carteirinhas ampliadas (100x70mm) preservando margem de segurança de impressão */}
-          <div className="flex-1 grid grid-cols-4 gap-0 px-2 overflow-hidden h-full w-full">
+          {/* 4 Colunas Verticais com corredor reduzido entre as carteirinhas e margem lateral protegida contra cortes de impressora */}
+          <div className="flex-1 flex items-center justify-between px-4 overflow-hidden h-full w-full">
             {slots.map((card, idx) => (
               <div
                 key={idx}
-                className="relative flex flex-col items-center justify-center border-0 bg-white overflow-hidden h-full w-full"
+                className="relative flex flex-col items-center justify-center border-0 bg-white overflow-hidden h-full w-[23.5%] shrink-0"
               >
                 {card ? (
                   <div className="w-full h-full flex items-center justify-center overflow-visible relative">
@@ -659,12 +659,12 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
 
             return (
               <div key={pgIdx} className="a4-print-page">
-                {/* 4 Colunas Verticais com Carteirinhas Reais: A4 Paisagem (297mm x 210mm) com margens seguras e espaçamento de corte */}
-                <div className="grid grid-cols-4 gap-0 h-[210mm] w-[297mm] px-[2.5mm] my-auto overflow-hidden">
+                {/* 4 Colunas Verticais com Carteirinhas Reais: A4 Paisagem (297mm x 210mm) com corredor reduzido em 1.5mm e margem externa protegida contra cortes de impressora */}
+                <div className="flex items-center justify-between h-[210mm] w-[297mm] px-[5mm] my-auto overflow-hidden">
                   {pageSlots.map((card, slotIdx) => (
                     <div
                       key={slotIdx}
-                      className="relative flex flex-col items-center justify-center border-0 bg-white overflow-hidden h-full w-full"
+                      className="relative flex flex-col items-center justify-center border-0 bg-white overflow-hidden h-full w-[70mm] shrink-0"
                     >
                       {card ? (
                         <div className="w-full h-full flex items-center justify-center overflow-visible relative">
