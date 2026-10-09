@@ -78,7 +78,7 @@ export const GdaModule: React.FC = () => {
     : null;
 
   const familyMembers = isFamily && titularCard
-    ? [titularCard, ...cards.filter((c) => c.familyHeadId === titularCard.id)]
+    ? [titularCard, ...cards.filter((c) => c.familyHeadId === titularCard.id && c.id !== titularCard.id)]
     : [];
 
   // UI state
@@ -328,13 +328,82 @@ export const GdaModule: React.FC = () => {
               <select
                 value={activeCardId}
                 onChange={(e) => setActiveCardId(e.target.value)}
-                className="bg-transparent font-medium text-slate-800 outline-none max-w-[180px] truncate cursor-pointer"
+                className="bg-transparent font-medium text-slate-800 outline-none max-w-[260px] truncate cursor-pointer"
               >
-                {cards.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.controlNumber} - {c.name} {c.isTitular ? '(Titular)' : ''}
-                  </option>
-                ))}
+                {/* 1. PLANO FAMILIAR (Agrupado por Família com Titular e Dependentes) */}
+                {cards.some((c) => c.category === 'PLANO_FAMILIAR') && (
+                  <optgroup label="👨‍👩‍👦 PLANO FAMILIAR (Titulares & Dependentes)">
+                    {cards
+                      .filter((c) => c.category === 'PLANO_FAMILIAR' && c.isTitular)
+                      .flatMap((titular) => {
+                        const familyDeps = cards.filter(
+                          (c) => c.category === 'PLANO_FAMILIAR' && c.familyHeadId === titular.id && c.id !== titular.id
+                        );
+                        return [
+                          <option key={titular.id} value={titular.id}>
+                            ★ {titular.controlNumber} - {titular.name} (Titular) [{familyDeps.length} dep.]
+                          </option>,
+                          ...familyDeps.map((dep) => (
+                            <option key={dep.id} value={dep.id}>
+                              &nbsp;&nbsp;&nbsp;&nbsp;└ {dep.controlNumber} - {dep.name} (Dependente)
+                            </option>
+                          )),
+                        ];
+                      })}
+                  </optgroup>
+                )}
+
+                {/* 2. PLANO INDIVIDUAL */}
+                {cards.some((c) => c.category === 'PLANO_INDIVIDUAL') && (
+                  <optgroup label="👤 PLANO INDIVIDUAL">
+                    {cards
+                      .filter((c) => c.category === 'PLANO_INDIVIDUAL')
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.controlNumber} - {c.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                )}
+
+                {/* 3. PLANO ESPECIAL (PCD / IDOSO / TEA) */}
+                {cards.some((c) => c.category === 'PLANO_ESPECIAL') && (
+                  <optgroup label="♿ PLANO ESPECIAL (PCD / Isento)">
+                    {cards
+                      .filter((c) => c.category === 'PLANO_ESPECIAL')
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.controlNumber} - {c.name} ({c.specialCondition || 'Especial'})
+                        </option>
+                      ))}
+                  </optgroup>
+                )}
+
+                {/* 4. PREFEITURA */}
+                {cards.some((c) => c.category === 'PREFEITURA') && (
+                  <optgroup label="🏛️ PREFEITURA MUNICIPAL">
+                    {cards
+                      .filter((c) => c.category === 'PREFEITURA')
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.controlNumber} - {c.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                )}
+
+                {/* 5. BOMBEIROS */}
+                {cards.some((c) => c.category === 'BOMBEIROS') && (
+                  <optgroup label="🚒 CORPO DE BOMBEIROS">
+                    {cards
+                      .filter((c) => c.category === 'BOMBEIROS')
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.controlNumber} - {c.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                )}
               </select>
             </div>
 

@@ -30,8 +30,10 @@ import JSZip from 'jszip';
 import appContextSelfRaw from './AppContext.tsx?raw';
 import {
   syncCardToFirestore,
+  syncAllCardsToFirestore,
   deleteCardFromFirestore,
   syncReservationToFirestore,
+  syncAllReservationsToFirestore,
   subscribeToCards,
   subscribeToReservations,
 } from '../services/firestoreSync';
@@ -468,19 +470,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [platformSettings]);
 
-  // Sincronização em tempo real com o Cloud Firestore
+  // Sincronização inteligente e não-destrutiva em tempo real com o Cloud Firestore
   useEffect(() => {
     try {
       const unsubCards = subscribeToCards((remoteCards) => {
-        if (remoteCards.length > 0) {
-          setCards(remoteCards);
-        }
+        if (!Array.isArray(remoteCards) || remoteCards.length === 0) return;
+
+        setCards((currentLocal) => {
+          const map = new Map<string, CardData>();
+
+          // 1. Carrega todos os cadastros locais existentes
+          for (const c of currentLocal) {
+            map.set(c.id, c);
+          }
+
+          // 2. Mescla os cadastros que vieram do Firestore (respeitando data de atualização)
+          for (const r of remoteCards) {
+            const existing = map.get(r.id);
+            if (!existing) {
+              map.set(r.id, r);
+            } else {
+              const rTime = r.updatedAt ? new Date(r.updatedAt).getTime() : 0;
+              const lTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+              if (rTime >= lTime) {
+                map.set(r.id, r);
+              }
+            }
+          }
+
+          const merged = Array.from(map.values());
+
+          // 3. Se houver cadastros locais que ainda não estão no Firestore (por exemplo, titulares recém-criados),
+          // envia-os em segundo plano para o Firestore para manter a nuvem 100% atualizada sem perdas
+          const remoteIds = new Set(remoteCards.map((r) => r.id));
+          const missingInCloud = currentLocal.filter((c) => !remoteIds.has(c.id));
+          if (missingInCloud.length > 0) {
+            syncAllCardsToFirestore(missingInCloud);
+          }
+
+          return merged;
+        });
       });
 
       const unsubRes = subscribeToReservations((remoteRes) => {
-        if (remoteRes.length > 0) {
-          setReservations(remoteRes);
-        }
+        if (!Array.isArray(remoteRes) || remoteRes.length === 0) return;
+
+        setReservations((currentLocal) => {
+          const map = new Map<string, BarbecueReservation>();
+          for (const r of currentLocal) {
+            map.set(r.id, r);
+          }
+          for (const r of remoteRes) {
+            map.set(r.id, r);
+          }
+          const merged = Array.from(map.values());
+
+          const remoteIds = new Set(remoteRes.map((r) => r.id));
+          const missingInCloud = currentLocal.filter((r) => !remoteIds.has(r.id));
+          if (missingInCloud.length > 0) {
+            syncAllReservationsToFirestore(missingInCloud);
+          }
+
+          return merged;
+        });
       });
 
       return () => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { CardData, CategoryType, BarbecueReservation } from '../../types';
 import { RichTextEditor } from '../common/RichTextEditor';
@@ -136,21 +136,56 @@ export const GidModule: React.FC = () => {
   });
 
   // Filter cards by subTab and search
-  const filteredCards = cards.filter((c) => {
-    if (c.category !== gidSubTab) return false;
-    if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
-    return (
-      c.name.toLowerCase().includes(term) ||
-      c.controlNumber.toLowerCase().includes(term) ||
-      (c.phone && c.phone.includes(term)) ||
-      (c.specialCondition && c.specialCondition.toLowerCase().includes(term)) ||
-      (c.notesHtml && c.notesHtml.toLowerCase().includes(term))
-    );
-  });
+  const filteredCards = useMemo(() => {
+    return cards.filter((c) => {
+      if (c.category !== gidSubTab) return false;
+      if (!searchTerm) return true;
+      const term = searchTerm.toLowerCase();
+      return (
+        c.name.toLowerCase().includes(term) ||
+        c.controlNumber.toLowerCase().includes(term) ||
+        (c.phone && c.phone.includes(term)) ||
+        (c.specialCondition && c.specialCondition.toLowerCase().includes(term)) ||
+        (c.notesHtml && c.notesHtml.toLowerCase().includes(term))
+      );
+    });
+  }, [cards, gidSubTab, searchTerm]);
 
-  // In Family Plan, group by titular
-  const titularsInSubTab = filteredCards.filter((c) => c.isTitular);
+  // In Family Plan, group by titular (including titulars whose dependents match the search)
+  const titularsInSubTab = useMemo(() => {
+    if (gidSubTab !== 'PLANO_FAMILIAR') {
+      return filteredCards.filter((c) => c.isTitular);
+    }
+
+    const allFamCards = cards.filter((c) => c.category === 'PLANO_FAMILIAR');
+    const allTitulars = allFamCards.filter((c) => c.isTitular);
+
+    if (!searchTerm) return allTitulars;
+
+    const term = searchTerm.toLowerCase();
+    return allTitulars.filter((titular) => {
+      // 1. O próprio titular combina com a busca
+      const titularMatches =
+        titular.name.toLowerCase().includes(term) ||
+        titular.controlNumber.toLowerCase().includes(term) ||
+        (titular.phone && titular.phone.includes(term)) ||
+        (titular.notesHtml && titular.notesHtml.toLowerCase().includes(term));
+
+      if (titularMatches) return true;
+
+      // 2. Ou algum de seus dependentes combina com a busca
+      const hasMatchingDependent = allFamCards.some(
+        (c) =>
+          c.familyHeadId === titular.id &&
+          c.id !== titular.id &&
+          (c.name.toLowerCase().includes(term) ||
+            c.controlNumber.toLowerCase().includes(term) ||
+            (c.notesHtml && c.notesHtml.toLowerCase().includes(term)))
+      );
+
+      return hasMatchingDependent;
+    });
+  }, [cards, gidSubTab, searchTerm, filteredCards]);
 
   // Open Notes editor for a card
   const handleOpenNotes = (card: CardData) => {
@@ -215,9 +250,15 @@ export const GidModule: React.FC = () => {
     if (!targetTitular || !newDependentName.trim()) return;
 
     addFamilyMember(targetTitular.id, {
-      name: newDependentName,
+      name: newDependentName.trim(),
       birthDate: newDependentBirthDate,
     });
+
+    // Auto-expand esta família para que o dependente recém-criado seja exibido imediatamente
+    setExpandedFamilyIds((prev) => ({
+      ...prev,
+      [targetTitular.id]: true,
+    }));
 
     setShowAddDependentModal(false);
     setTargetTitular(null);
@@ -470,6 +511,29 @@ export const GidModule: React.FC = () => {
                 />
               </div>
 
+              {gidSubTab === 'PLANO_FAMILIAR' && titularsInSubTab.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allOpen = titularsInSubTab.every((t) => expandedFamilyIds[t.id] !== false);
+                    const nextState: Record<string, boolean> = {};
+                    titularsInSubTab.forEach((t) => {
+                      nextState[t.id] = !allOpen;
+                    });
+                    setExpandedFamilyIds(nextState);
+                  }}
+                  className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold border border-indigo-200 transition-colors cursor-pointer flex items-center gap-1.5"
+                  title="Expandir ou recolher todos os dependentes de todas as famílias"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>
+                    {titularsInSubTab.every((t) => expandedFamilyIds[t.id] !== false)
+                      ? 'Recolher Todas as Famílias'
+                      : 'Expandir Todas as Famílias'}
+                  </span>
+                </button>
+              )}
+
               <button
                 onClick={() => {
                   setNewMemberData({
@@ -540,8 +604,10 @@ export const GidModule: React.FC = () => {
                       </tr>
                     ) : (
                       titularsInSubTab.map((titular) => {
-                        const dependents = cards.filter((c) => c.familyHeadId === titular.id);
-                        const isExpanded = !!expandedFamilyIds[titular.id];
+                        const dependents = cards.filter(
+                          (c) => c.category === 'PLANO_FAMILIAR' && c.familyHeadId === titular.id && c.id !== titular.id
+                        );
+                        const isExpanded = expandedFamilyIds[titular.id] !== undefined ? expandedFamilyIds[titular.id] : true;
                         return (
                           <React.Fragment key={titular.id}>
                             {/* Titular Row - Sempre Visível */}

@@ -6,18 +6,60 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { CardData, BarbecueReservation, AuditLog } from '../types';
+import { CardData, BarbecueReservation, AuditLog, PopProcedure } from '../types';
+
+/**
+ * Remove recursivamente todas as propriedades com valor `undefined`
+ * para evitar que o Firebase Firestore rejeite a gravação com o erro:
+ * "Unsupported field value: undefined"
+ */
+export function sanitizeForFirestore<T>(data: T): any {
+  if (data === undefined || data === null) {
+    return null;
+  }
+  if (Array.isArray(data)) {
+    return data.map((item) => sanitizeForFirestore(item));
+  }
+  if (typeof data === 'object') {
+    const cleaned: Record<string, any> = {};
+    for (const [key, val] of Object.entries(data as Record<string, any>)) {
+      if (val !== undefined) {
+        cleaned[key] = sanitizeForFirestore(val);
+      }
+    }
+    return cleaned;
+  }
+  return data;
+}
 
 /**
  * Salva ou atualiza uma carteirinha no Cloud Firestore
  */
 export async function syncCardToFirestore(card: CardData): Promise<void> {
-  if (!db) return;
+  if (!db || !card || !card.id) return;
   try {
     const cardRef = doc(db, 'cards', card.id);
-    await setDoc(cardRef, card, { merge: true });
+    const sanitized = sanitizeForFirestore(card);
+    await setDoc(cardRef, sanitized, { merge: true });
   } catch (error) {
     console.warn('[Firestore] Falha ao sincronizar carteirinha na nuvem:', error);
+  }
+}
+
+/**
+ * Sincroniza em lote uma lista inteira de carteirinhas para a nuvem
+ */
+export async function syncAllCardsToFirestore(cards: CardData[]): Promise<void> {
+  if (!db || !Array.isArray(cards)) return;
+  try {
+    for (const card of cards) {
+      if (card && card.id) {
+        await syncCardToFirestore(card);
+      }
+    }
+    console.log(`[Firestore] Sincronização em lote concluída: ${cards.length} carteirinhas.`);
+  } catch (error) {
+    console.warn('[Firestore] Falha na sincronização em lote de carteirinhas:', error);
   }
 }
 
@@ -25,7 +67,7 @@ export async function syncCardToFirestore(card: CardData): Promise<void> {
  * Remove uma carteirinha do Cloud Firestore
  */
 export async function deleteCardFromFirestore(cardId: string): Promise<void> {
-  if (!db) return;
+  if (!db || !cardId) return;
   try {
     await deleteDoc(doc(db, 'cards', cardId));
   } catch (error) {
@@ -37,12 +79,29 @@ export async function deleteCardFromFirestore(cardId: string): Promise<void> {
  * Salva ou atualiza uma reserva de churrasqueira no Cloud Firestore
  */
 export async function syncReservationToFirestore(reservation: BarbecueReservation): Promise<void> {
-  if (!db) return;
+  if (!db || !reservation || !reservation.id) return;
   try {
     const resRef = doc(db, 'reservations', reservation.id);
-    await setDoc(resRef, reservation, { merge: true });
+    const sanitized = sanitizeForFirestore(reservation);
+    await setDoc(resRef, sanitized, { merge: true });
   } catch (error) {
     console.warn('[Firestore] Falha ao sincronizar reserva na nuvem:', error);
+  }
+}
+
+/**
+ * Sincroniza todas as reservas para o Firestore
+ */
+export async function syncAllReservationsToFirestore(reservations: BarbecueReservation[]): Promise<void> {
+  if (!db || !Array.isArray(reservations)) return;
+  try {
+    for (const res of reservations) {
+      if (res && res.id) {
+        await syncReservationToFirestore(res);
+      }
+    }
+  } catch (error) {
+    console.warn('[Firestore] Falha ao sincronizar reservas em lote:', error);
   }
 }
 
@@ -50,10 +109,11 @@ export async function syncReservationToFirestore(reservation: BarbecueReservatio
  * Salva log de auditoria no Cloud Firestore
  */
 export async function syncLogToFirestore(log: AuditLog): Promise<void> {
-  if (!db) return;
+  if (!db || !log || !log.id) return;
   try {
     const logRef = doc(db, 'auditLogs', log.id);
-    await setDoc(logRef, log, { merge: true });
+    const sanitized = sanitizeForFirestore(log);
+    await setDoc(logRef, sanitized, { merge: true });
   } catch (error) {
     console.warn('[Firestore] Falha ao registrar log na nuvem:', error);
   }
