@@ -91,6 +91,7 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
             border: config.showBorder
               ? `${config.borderWidth}px solid ${config.borderColor}`
               : '1px solid #cbd5e1',
+            borderBottom: '1.5px solid #0f172a',
           backgroundColor: config.cardBackground,
           fontFamily:
             config.fontFamily === 'Courier'
@@ -324,6 +325,7 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
           border: config.showBorder
             ? `${config.borderWidth}px solid ${config.borderColor}`
             : '1px solid #cbd5e1',
+          borderBottom: '1.5px solid #0f172a',
           backgroundColor: config.cardBackground,
           fontFamily:
             config.fontFamily === 'Courier'
@@ -401,10 +403,12 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
         </div>
 
         {/* Rodapé do Verso: NÃO PLASTIFICAR */}
-        <div className="mt-0.5 border-t border-slate-300 pt-0.5 flex items-center justify-center w-full shrink-0">
+        <div className="mt-0.5 border-t border-slate-300 pt-0.5 flex flex-col items-center justify-center w-full shrink-0">
           <span className="text-[10px] font-black text-center text-slate-950 tracking-wide uppercase leading-none whitespace-nowrap">
             NÃO PLASTIFICAR
           </span>
+          {/* Linha de corte / borda lateral obrigatória abaixo do NÃO PLASTIFICAR (corredor de corte) */}
+          <div className="w-full border-b-[1.5px] border-slate-900 mt-0.5" style={{ minHeight: '1.5px' }} />
         </div>
       </div>
       )}

@@ -6,6 +6,7 @@ import {
   formatBackupDate,
 } from '../../context/AppContext';
 import appContextRaw from '../../context/AppContext.tsx?raw';
+import zipExporterRaw from '../../utils/zipExporter.ts?raw';
 import {
   X,
   Database,
@@ -104,6 +105,20 @@ export const BackupManagerModal: React.FC<BackupManagerModalProps> = ({ isOpen, 
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     setDownloadSuccessToast('Arquivo AppContext.tsx baixado! Basta arrastá-lo para dentro do GitHub em SISCOP/src/context/.');
+    setTimeout(() => setDownloadSuccessToast(null), 6000);
+  };
+
+  const handleDownloadZipExporterFile = () => {
+    const blob = new Blob([zipExporterRaw], { type: 'text/typescript;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'zipExporter.ts';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setDownloadSuccessToast('Arquivo zipExporter.ts baixado! Basta arrastá-lo para dentro do GitHub em SISCOP/src/utils/.');
     setTimeout(() => setDownloadSuccessToast(null), 6000);
   };
 
@@ -529,16 +544,28 @@ export const BackupManagerModal: React.FC<BackupManagerModalProps> = ({ isOpen, 
                   ★ Arquivo .ZIP real contendo src/, configs, package.json e README para GitHub e Vercel.
                 </div>
 
-                {/* BOTÃO DIRETO: BAIXAR ARQUIVO APPCONTEXT.TSX PARA O GITHUB */}
-                <button
-                  type="button"
-                  onClick={handleDownloadAppContextFile}
-                  className="w-full py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all active:scale-[0.99] cursor-pointer"
-                  title="Baixa diretamente o arquivo AppContext.tsx corrigido, pronto para subir no GitHub em SISCOP/src/context/"
-                >
-                  <Download className="w-4 h-4 text-blue-200" />
-                  <span>Baixar Arquivo AppContext.tsx Corrigido</span>
-                </button>
+                {/* BOTÕES DIRETOS DE ARQUIVOS CORRIGIDOS */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDownloadAppContextFile}
+                    className="w-full py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all active:scale-[0.99] cursor-pointer"
+                    title="Baixa diretamente o arquivo AppContext.tsx atualizado e limpo, pronto para subir no GitHub em SISCOP/src/context/"
+                  >
+                    <Download className="w-4 h-4 text-blue-200" />
+                    <span>Baixar AppContext.tsx</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDownloadZipExporterFile}
+                    className="w-full py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all active:scale-[0.99] cursor-pointer"
+                    title="Baixa diretamente o arquivo zipExporter.ts para resolver o módulo no GitHub em SISCOP/src/utils/"
+                  >
+                    <Download className="w-4 h-4 text-indigo-200" />
+                    <span>Baixar zipExporter.ts</span>
+                  </button>
+                </div>
 
                 {/* BOTÃO SECUNDÁRIO: FORMATO JSON */}
                 <button

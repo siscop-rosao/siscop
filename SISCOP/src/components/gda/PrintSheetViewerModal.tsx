@@ -599,11 +599,11 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
           }}
         >
           {/* 4 Colunas Verticais com corredor reduzido entre as carteirinhas e margem lateral protegida contra cortes de impressora */}
-          <div className="flex-1 flex items-center justify-between px-4 overflow-hidden h-full w-full">
+          <div className="flex-1 flex items-center justify-between px-4 overflow-visible h-full w-full">
             {slots.map((card, idx) => (
               <div
                 key={idx}
-                className="relative flex flex-col items-center justify-center border-0 bg-white overflow-hidden h-full w-[23.5%] shrink-0"
+                className="relative flex flex-col items-center justify-center border-0 bg-white overflow-visible h-full w-[23.5%] shrink-0"
               >
                 {card ? (
                   <div className="w-full h-full flex items-center justify-center overflow-visible relative">
@@ -628,15 +628,7 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center text-slate-400 text-xs font-mono space-y-1.5 p-2 text-center">
-                    <div className="w-8 h-8 rounded-full border border-dashed border-slate-300 flex items-center justify-center text-slate-300 font-bold">
-                      {idx + 1}
-                    </div>
-                    <span className="font-semibold text-slate-500 text-[11px]">Posição #{idx + 1}</span>
-                    <span className="text-[10px] text-slate-400">
-                      (Espaço Livre no A4)
-                    </span>
-                  </div>
+                  <div className="w-full h-full bg-white" />
                 )}
               </div>
             ))}
@@ -660,11 +652,11 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
             return (
               <div key={pgIdx} className="a4-print-page">
                 {/* 4 Colunas Verticais com Carteirinhas Reais: A4 Paisagem (297mm x 210mm) com corredor reduzido em 1.5mm e margem externa protegida contra cortes de impressora */}
-                <div className="flex items-center justify-between h-[210mm] w-[297mm] px-[5mm] my-auto overflow-hidden">
+                <div className="flex items-center justify-between h-[210mm] w-[297mm] px-[5mm] my-auto overflow-visible">
                   {pageSlots.map((card, slotIdx) => (
                     <div
                       key={slotIdx}
-                      className="relative flex flex-col items-center justify-center border-0 bg-white overflow-hidden h-full w-[70mm] shrink-0"
+                      className="relative flex flex-col items-center justify-center border-0 bg-white overflow-visible h-full w-[70mm] shrink-0"
                     >
                       {card ? (
                         <div className="w-full h-full flex items-center justify-center overflow-visible relative">
@@ -689,13 +681,7 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
                           </div>
                         </div>
                       ) : (
-                        <div className="flex flex-col items-center justify-center text-slate-400 text-xs font-mono space-y-1.5 p-2 text-center">
-                          <div className="w-8 h-8 rounded-full border border-dashed border-slate-300 flex items-center justify-center text-slate-300 font-bold text-sm">
-                            {slotIdx + 1}
-                          </div>
-                          <span className="font-semibold text-slate-500 text-[10px]">Posição #{slotIdx + 1}</span>
-                          <span className="text-[9px] text-slate-400">(Espaço Livre no A4)</span>
-                        </div>
+                        <div className="w-full h-full bg-white" />
                       )}
                     </div>
                   ))}

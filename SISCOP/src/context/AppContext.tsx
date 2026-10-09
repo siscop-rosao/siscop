@@ -37,6 +37,14 @@ import {
   syncAllReservationsToFirestore,
   subscribeToCards,
   subscribeToReservations,
+  syncUserToFirestore,
+  syncAllUsersToFirestore,
+  deleteUserFromFirestore,
+  subscribeToUsers,
+  syncPlatformSettingsToFirestore,
+  subscribeToPlatformSettings,
+  syncLayoutConfigToFirestore,
+  subscribeToLayoutConfig,
 } from '../services/firestoreSync';
 
 export const formatBackupFilename = (prefix = 'Backup_DataBase'): string => {
@@ -536,9 +544,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       });
 
+      const unsubUsers = subscribeToUsers((remoteUsers) => {
+        if (!Array.isArray(remoteUsers) || remoteUsers.length === 0) return;
+        setUsers((currentLocal) => {
+          const map = new Map<string, User>();
+          for (const u of currentLocal) {
+            map.set(u.id, u);
+          }
+          for (const r of remoteUsers) {
+            map.set(r.id, r);
+          }
+          const merged = Array.from(map.values());
+          const remoteIds = new Set(remoteUsers.map((u) => u.id));
+          const missingInCloud = currentLocal.filter((u) => !remoteIds.has(u.id));
+          if (missingInCloud.length > 0) {
+            syncAllUsersToFirestore(missingInCloud);
+          }
+          return merged;
+        });
+      });
+
+      const unsubSettings = subscribeToPlatformSettings((remoteSettings) => {
+        if (remoteSettings && typeof remoteSettings === 'object') {
+          setPlatformSettings((prev) => ({ ...prev, ...remoteSettings }));
+        }
+      });
+
+      const unsubLayout = subscribeToLayoutConfig((remoteLayout) => {
+        if (remoteLayout && typeof remoteLayout === 'object') {
+          setLayoutConfig((prev) => ({ ...prev, ...remoteLayout }));
+        }
+      });
+
       return () => {
         unsubCards();
         unsubRes();
+        unsubUsers();
+        unsubSettings();
+        unsubLayout();
       };
     } catch (e) {
       console.warn('Falha ao inicializar conexão Firestore:', e);
@@ -676,7 +719,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateUserPassword = (userId: string, newPass: string) => {
     setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, password: newPass } : u))
+      prev.map((u) => {
+        if (u.id === userId) {
+          const updated = { ...u, password: newPass };
+          syncUserToFirestore(updated);
+          return updated;
+        }
+        return u;
+      })
     );
     addLog('MUDAR_SENHA_USUARIO', 'AUTH', `Senha alterada para o usuário ID ${userId}.`);
   };
@@ -705,6 +755,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setUsers((prev) => [...prev, newUser]);
+    syncUserToFirestore(newUser);
     addLog('CRIAR_USUARIO_SISTEMA', 'SISTEMA', `Novo usuário cadastrado no sistema: ${newUser.name} (@${newUser.username})`);
     return { success: true };
   };
@@ -741,6 +792,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (currentUser?.id === userId) {
             setCurrentUser(updated);
           }
+          syncUserToFirestore(updated);
           return updated;
         }
         return u;
@@ -766,6 +818,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     setUsers((prev) => prev.filter((u) => u.id !== userId));
+    deleteUserFromFirestore(userId);
     addLog('EXCLUIR_USUARIO_SISTEMA', 'SISTEMA', `Usuário removido do sistema: ${target.name} (@${target.username})`);
     return { success: true };
   };
@@ -779,12 +832,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUsers((prev) =>
       prev.map((u) => {
         if (u.id === userId) {
-          return {
+          const updated = {
             ...u,
             isLocked: false,
             failedLoginAttempts: 0,
             lockedAt: undefined,
           };
+          syncUserToFirestore(updated);
+          return updated;
         }
         return u;
       })
@@ -985,8 +1040,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteCard = (id: string) => {
     const target = cards.find((c) => c.id === id);
+    const depsToDelete = cards.filter((c) => c.familyHeadId === id);
     setCards((prev) => prev.filter((c) => c.id !== id && c.familyHeadId !== id));
     deleteCardFromFirestore(id);
+    for (const dep of depsToDelete) {
+      deleteCardFromFirestore(dep.id);
+    }
     addLog(
       'EXCLUIR_USUARIO_GID',
       'GID_USUARIOS',
@@ -1148,21 +1207,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Layout configuration & Coat of Arms
   const updateLayoutConfig = (updates: Partial<CardLayoutConfig>) => {
-    setLayoutConfig((prev) => ({ ...prev, ...updates }));
+    setLayoutConfig((prev) => {
+      const updated = { ...prev, ...updates };
+      syncLayoutConfigToFirestore(updated);
+      return updated;
+    });
     addLog('CONFIGURAR_LAYOUT', 'GDA', 'Ajustou parâmetros do layout customizável de impressão da carteirinha.');
   };
 
   const resetLayoutConfig = () => {
     setLayoutConfig(DEFAULT_LAYOUT_CONFIG);
+    syncLayoutConfigToFirestore(DEFAULT_LAYOUT_CONFIG);
   };
 
   const updateCoatOfArms = (dataUrl: string) => {
-    setLayoutConfig((prev) => ({ ...prev, customCoatOfArmsUrl: dataUrl }));
+    setLayoutConfig((prev) => {
+      const updated = { ...prev, customCoatOfArmsUrl: dataUrl };
+      syncLayoutConfigToFirestore(updated);
+      return updated;
+    });
     addLog('ATUALIZAR_BRASAO', 'GDA', 'Carregou e fixou nova imagem oficial do Brasão da Prefeitura na carteirinha.');
   };
 
   const resetCoatOfArms = () => {
-    setLayoutConfig((prev) => ({ ...prev, customCoatOfArmsUrl: '' }));
+    setLayoutConfig((prev) => {
+      const updated = { ...prev, customCoatOfArmsUrl: '' };
+      syncLayoutConfigToFirestore(updated);
+      return updated;
+    });
     addLog('ATUALIZAR_BRASAO', 'GDA', 'Restaurou Brasão oficial vetorial de Pouso Alegre na carteirinha.');
   };
 
@@ -1175,6 +1247,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (e) {
         console.warn('Failed saving settings to localStorage:', e);
       }
+      syncPlatformSettingsToFirestore(updated);
       return updated;
     });
     addLog('CONFIGURAR_LAYOUT', 'SISTEMA', 'Atualizou configurações da plataforma e identidade visual no Setup.');
@@ -1187,6 +1260,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.warn('Failed removing settings from localStorage:', e);
     }
+    syncPlatformSettingsToFirestore(DEFAULT_PLATFORM_SETTINGS);
     addLog('CONFIGURAR_LAYOUT', 'SISTEMA', 'Restaurou padrões oficiais do Setup da plataforma.');
   };
 

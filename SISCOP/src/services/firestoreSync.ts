@@ -6,7 +6,15 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { CardData, BarbecueReservation, AuditLog, PopProcedure } from '../types';
+import {
+  CardData,
+  BarbecueReservation,
+  AuditLog,
+  PopProcedure,
+  User,
+  PlatformSettings,
+  CardLayoutConfig,
+} from '../types';
 
 /**
  * Remove recursivamente todas as propriedades com valor `undefined`
@@ -120,6 +128,76 @@ export async function syncLogToFirestore(log: AuditLog): Promise<void> {
 }
 
 /**
+ * Salva ou atualiza um usuário / operador no Cloud Firestore
+ */
+export async function syncUserToFirestore(user: User): Promise<void> {
+  if (!db || !user || !user.id) return;
+  try {
+    const userRef = doc(db, 'users', user.id);
+    const sanitized = sanitizeForFirestore(user);
+    await setDoc(userRef, sanitized, { merge: true });
+  } catch (error) {
+    console.warn('[Firestore] Falha ao sincronizar usuário no Firestore:', error);
+  }
+}
+
+/**
+ * Sincroniza todos os usuários para o Firestore
+ */
+export async function syncAllUsersToFirestore(users: User[]): Promise<void> {
+  if (!db || !Array.isArray(users)) return;
+  try {
+    for (const u of users) {
+      if (u && u.id) {
+        await syncUserToFirestore(u);
+      }
+    }
+  } catch (error) {
+    console.warn('[Firestore] Falha ao sincronizar usuários em lote:', error);
+  }
+}
+
+/**
+ * Remove um usuário do Cloud Firestore
+ */
+export async function deleteUserFromFirestore(userId: string): Promise<void> {
+  if (!db || !userId) return;
+  try {
+    await deleteDoc(doc(db, 'users', userId));
+  } catch (error) {
+    console.warn('[Firestore] Falha ao excluir usuário no Firestore:', error);
+  }
+}
+
+/**
+ * Salva ou atualiza as configurações da plataforma (Brasão, Banner, Títulos) no Firestore
+ */
+export async function syncPlatformSettingsToFirestore(settings: PlatformSettings): Promise<void> {
+  if (!db || !settings) return;
+  try {
+    const settingsRef = doc(db, 'settings', 'global');
+    const sanitized = sanitizeForFirestore(settings);
+    await setDoc(settingsRef, sanitized, { merge: true });
+  } catch (error) {
+    console.warn('[Firestore] Falha ao sincronizar configurações da plataforma no Firestore:', error);
+  }
+}
+
+/**
+ * Salva ou atualiza o layout da carteirinha no Firestore
+ */
+export async function syncLayoutConfigToFirestore(layout: CardLayoutConfig): Promise<void> {
+  if (!db || !layout) return;
+  try {
+    const layoutRef = doc(db, 'layoutConfig', 'global');
+    const sanitized = sanitizeForFirestore(layout);
+    await setDoc(layoutRef, sanitized, { merge: true });
+  } catch (error) {
+    console.warn('[Firestore] Falha ao sincronizar layout de impressão no Firestore:', error);
+  }
+}
+
+/**
  * Inscreve um ouvinte em tempo real para sincronização de carteirinhas
  */
 export function subscribeToCards(onUpdate: (cards: CardData[]) => void): () => void {
@@ -171,6 +249,82 @@ export function subscribeToReservations(onUpdate: (res: BarbecueReservation[]) =
     );
   } catch (err) {
     console.warn('[Firestore] Falha ao registrar listener de reservas:', err);
+    return () => {};
+  }
+}
+
+/**
+ * Inscreve um ouvinte em tempo real para usuários do sistema
+ */
+export function subscribeToUsers(onUpdate: (users: User[]) => void): () => void {
+  if (!db) return () => {};
+  try {
+    const usersCol = collection(db, 'users');
+    return onSnapshot(
+      usersCol,
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const list: User[] = [];
+          snapshot.forEach((d) => {
+            list.push(d.data() as User);
+          });
+          onUpdate(list);
+        }
+      },
+      (err) => {
+        console.warn('[Firestore] Listener de usuários offline/erro:', err);
+      }
+    );
+  } catch (err) {
+    console.warn('[Firestore] Falha ao registrar listener de usuários:', err);
+    return () => {};
+  }
+}
+
+/**
+ * Inscreve um ouvinte em tempo real para configurações da plataforma (Brasão, Banner, Títulos)
+ */
+export function subscribeToPlatformSettings(onUpdate: (settings: PlatformSettings) => void): () => void {
+  if (!db) return () => {};
+  try {
+    const settingsDoc = doc(db, 'settings', 'global');
+    return onSnapshot(
+      settingsDoc,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          onUpdate(snapshot.data() as PlatformSettings);
+        }
+      },
+      (err) => {
+        console.warn('[Firestore] Listener de configurações offline/erro:', err);
+      }
+    );
+  } catch (err) {
+    console.warn('[Firestore] Falha ao registrar listener de configurações:', err);
+    return () => {};
+  }
+}
+
+/**
+ * Inscreve um ouvinte em tempo real para layout da carteirinha
+ */
+export function subscribeToLayoutConfig(onUpdate: (layout: CardLayoutConfig) => void): () => void {
+  if (!db) return () => {};
+  try {
+    const layoutDoc = doc(db, 'layoutConfig', 'global');
+    return onSnapshot(
+      layoutDoc,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          onUpdate(snapshot.data() as CardLayoutConfig);
+        }
+      },
+      (err) => {
+        console.warn('[Firestore] Listener de layout offline/erro:', err);
+      }
+    );
+  } catch (err) {
+    console.warn('[Firestore] Falha ao registrar listener de layout:', err);
     return () => {};
   }
 }
