@@ -14,6 +14,9 @@ import {
   Cpu,
   Activity,
   Terminal,
+  AlertTriangle,
+  ShieldAlert,
+  LockKeyhole,
 } from 'lucide-react';
 
 interface LoginModalProps {
@@ -22,12 +25,17 @@ interface LoginModalProps {
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({ onClose, isMandatory = false }) => {
-  const { users, login, currentUser, platformSettings } = useApp();
+  const { users, loginWithAttempts, currentUser, platformSettings } = useApp();
   const [username, setUsername] = useState(currentUser?.username || 'admin');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [attemptAlert, setAttemptAlert] = useState<{
+    isLocked: boolean;
+    remainingAttempts?: number;
+    message: string;
+  } | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,15 +43,21 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, isMandatory = f
     setErrorMsg('');
 
     setTimeout(() => {
-      const success = login(username, password);
-      if (success) {
+      const result = loginWithAttempts(username, password);
+      if (result.success) {
         setErrorMsg('');
+        setAttemptAlert(null);
         if (onClose) onClose();
       } else {
-        setErrorMsg('Credenciais inválidas. Verifique o usuário e a senha digitados.');
+        setErrorMsg(result.message || 'Credenciais inválidas.');
+        setAttemptAlert({
+          isLocked: !!result.isLocked,
+          remainingAttempts: result.remainingAttempts,
+          message: result.message || 'Credenciais inválidas. Verifique o usuário e a senha digitados.',
+        });
       }
       setIsLoading(false);
-    }, 400);
+    }, 350);
   };
 
   const selectedUserObj = users.find((u) => u.username === username);
@@ -326,8 +340,88 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, isMandatory = f
         </div>
       </div>
 
+      {/* ================= MODAL DE ALERTA DE TENTATIVAS INCORRETAS / TRAVAMENTO ================= */}
+      {attemptAlert && (
+        <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div
+            className={`max-w-md w-full rounded-2xl p-6 border shadow-2xl relative ${
+              attemptAlert.isLocked
+                ? 'bg-slate-900 border-rose-500/80 shadow-[0_0_50px_rgba(244,63,94,0.3)]'
+                : 'bg-slate-900 border-amber-500/80 shadow-[0_0_50px_rgba(245,158,11,0.25)]'
+            }`}
+          >
+            <div className="flex items-start gap-4">
+              <div
+                className={`p-3 rounded-2xl shrink-0 ${
+                  attemptAlert.isLocked
+                    ? 'bg-rose-950/80 border border-rose-500 text-rose-400'
+                    : 'bg-amber-950/80 border border-amber-500 text-amber-400'
+                }`}
+              >
+                {attemptAlert.isLocked ? (
+                  <LockKeyhole className="w-8 h-8 text-rose-500 animate-pulse" />
+                ) : (
+                  <AlertTriangle className="w-8 h-8 text-amber-400" />
+                )}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <span
+                  className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider uppercase mb-1 ${
+                    attemptAlert.isLocked
+                      ? 'bg-rose-900/60 text-rose-300 border border-rose-700/60'
+                      : 'bg-amber-900/60 text-amber-300 border border-amber-700/60'
+                  }`}
+                >
+                  {attemptAlert.isLocked ? 'SEGURANÇA ATIVADA • CONTA BLOQUEADA' : 'AVISO DE AUTENTICAÇÃO'}
+                </span>
+                <h3
+                  className={`text-base font-bold tracking-tight ${
+                    attemptAlert.isLocked ? 'text-rose-400' : 'text-amber-300'
+                  }`}
+                >
+                  {attemptAlert.isLocked ? 'ACESSO TRAVADO' : 'Credenciais Incorretas'}
+                </h3>
+                <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+                  {attemptAlert.message}
+                </p>
+
+                {/* Régua Visual de Tentativas */}
+                {!attemptAlert.isLocked && attemptAlert.remainingAttempts !== undefined && (
+                  <div className="mt-4 p-3 bg-slate-950/70 border border-slate-800 rounded-xl">
+                    <div className="flex items-center justify-between text-[11px] font-mono text-slate-300 mb-1.5">
+                      <span>Tentativas restantes:</span>
+                      <strong className="text-amber-400 font-bold">{attemptAlert.remainingAttempts} de 3</strong>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5 h-2">
+                      <div className={`rounded-full ${attemptAlert.remainingAttempts <= 2 ? 'bg-amber-500' : 'bg-slate-700'}`} />
+                      <div className={`rounded-full ${attemptAlert.remainingAttempts <= 1 ? 'bg-amber-500' : 'bg-slate-700'}`} />
+                      <div className={`rounded-full ${attemptAlert.remainingAttempts === 0 ? 'bg-rose-500' : 'bg-slate-700'}`} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setAttemptAlert(null)}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md ${
+                  attemptAlert.isLocked
+                    ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-900/50'
+                    : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-900/50'
+                }`}
+              >
+                {attemptAlert.isLocked ? 'Entendido (Contatar Administrador)' : 'Tentar Novamente'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ================= RODAPÉ DA PÁGINA (AO CENTRO, TAMANHO 8) ================= */}
-      <footer className="relative z-10 w-full py-4 text-center border-t border-slate-900 bg-slate-950/80">
+      <footer className="relative z-10 w-full py-4 text-center border-t border-slate-900 bg-slate-950/80 shrink-0">
         <p
           className="text-slate-400 font-mono tracking-widest uppercase select-none"
           style={{ fontSize: '8px', lineHeight: '1.2' }}

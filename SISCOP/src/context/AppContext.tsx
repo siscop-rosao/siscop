@@ -14,6 +14,7 @@ import {
   PlatformSettings,
   BackupGenerationRecord,
   BackupRestoreRecord,
+  LoginResult,
 } from '../types';
 import {
   INITIAL_USERS,
@@ -94,9 +95,14 @@ interface AppContextType {
   currentUser: User | null;
   users: User[];
   login: (username: string, pass: string) => boolean;
+  loginWithAttempts: (username: string, pass: string) => LoginResult;
   logout: () => void;
   switchUser: (userId: string) => void;
   updateUserPassword: (userId: string, newPass: string) => void;
+  addUser: (userData: Omit<User, 'id'>) => { success: boolean; message?: string };
+  updateUser: (userId: string, updates: Partial<User>) => { success: boolean; message?: string };
+  deleteUser: (userId: string) => { success: boolean; message?: string };
+  unlockUser: (userId: string, adminPass: string) => { success: boolean; message?: string };
 
   // View Navigation
   currentView: 'DASHBOARD' | 'GDA' | 'GID' | 'POP' | 'LOGS' | 'USERS_ADMIN';
@@ -510,12 +516,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Auth methods
-  const login = (username: string, pass: string): boolean => {
+  const loginWithAttempts = (username: string, pass: string): LoginResult => {
+    const trimmedUsername = username.trim().toLowerCase();
     const found = users.find(
-      (u) => u.username.toLowerCase() === username.trim().toLowerCase() && u.active
+      (u) => u.username.toLowerCase() === trimmedUsername && u.active
     );
-    if (found && (!found.password || found.password === pass)) {
-      const updatedUser = { ...found, lastLogin: new Date().toISOString() };
+
+    if (!found) {
+      return {
+        success: false,
+        message: 'Usuário não localizado no sistema. Verifique o login.',
+      };
+    }
+
+    // Se o usuário já estiver travado
+    if (found.isLocked) {
+      return {
+        success: false,
+        isLocked: true,
+        remainingAttempts: 0,
+        message: 'ACESSO TRAVADO! Seu acesso foi bloqueado por excesso de tentativas incorretas. Procure o Administrador do SISCOP para destravar seu usuário.',
+      };
+    }
+
+    // Valida credenciais
+    if (!found.password || found.password === pass) {
+      const updatedUser: User = {
+        ...found,
+        failedLoginAttempts: 0,
+        isLocked: false,
+        lastLogin: new Date().toISOString(),
+      };
       setCurrentUser(updatedUser);
       setUsers((prev) => prev.map((u) => (u.id === found.id ? updatedUser : u)));
       
@@ -530,9 +561,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         details: `Login efetuado com sucesso pelo usuário ${found.name} (${found.username}).`,
       };
       setLogs((prev) => [newLog, ...prev]);
-      return true;
+      return { success: true };
     }
-    return false;
+
+    // Senha incorreta -> computa tentativas
+    const newAttempts = (found.failedLoginAttempts || 0) + 1;
+    if (newAttempts >= 3) {
+      const lockedUser: User = {
+        ...found,
+        failedLoginAttempts: 3,
+        isLocked: true,
+        lockedAt: new Date().toISOString(),
+      };
+      setUsers((prev) => prev.map((u) => (u.id === found.id ? lockedUser : u)));
+      addLog(
+        'BLOQUEIO_TENTATIVAS_LOGIN',
+        'AUTH',
+        `Acesso bloqueado por 3 tentativas incorretas para ${found.name} (${found.username}).`
+      );
+      return {
+        success: false,
+        isLocked: true,
+        remainingAttempts: 0,
+        message: 'ACESSO TRAVADO! Você errou as 3 tentativas consecutivas de senha. O seu cadastro foi travado por segurança. Procure o Administrador do SISCOP para realizar o desbloqueio.',
+      };
+    } else {
+      const remaining = 3 - newAttempts;
+      const updatedUser: User = {
+        ...found,
+        failedLoginAttempts: newAttempts,
+      };
+      setUsers((prev) => prev.map((u) => (u.id === found.id ? updatedUser : u)));
+      return {
+        success: false,
+        isLocked: false,
+        remainingAttempts: remaining,
+        message: `Senha incorreta! Você possui mais ${remaining} tentativa(s) restante(s) antes do travamento da conta.`,
+      };
+    }
+  };
+
+  const login = (username: string, pass: string): boolean => {
+    const res = loginWithAttempts(username, pass);
+    return res.success;
   };
 
   const logout = () => {
@@ -554,7 +625,111 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, password: newPass } : u))
     );
-    addLog('LOGIN', 'AUTH', `Senha alterada para o usuário ID ${userId}.`);
+    addLog('MUDAR_SENHA_USUARIO', 'AUTH', `Senha alterada para o usuário ID ${userId}.`);
+  };
+
+  const addUser = (userData: Omit<User, 'id'>): { success: boolean; message?: string } => {
+    const cleanUsername = userData.username.trim().toLowerCase();
+    if (users.some((u) => u.username.toLowerCase() === cleanUsername)) {
+      return { success: false, message: 'Já existe um usuário cadastrado com este nome de login.' };
+    }
+
+    if (userData.role === 'admin') {
+      const currentAdmins = users.filter((u) => u.role === 'admin').length;
+      if (currentAdmins >= 2) {
+        return {
+          success: false,
+          message: 'Limite atingido: O SISCOP permite no máximo 2 Administradores cadastrados simultaneamente.',
+        };
+      }
+    }
+
+    const newUser: User = {
+      ...userData,
+      id: `usr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      failedLoginAttempts: 0,
+      isLocked: false,
+    };
+
+    setUsers((prev) => [...prev, newUser]);
+    addLog('CRIAR_USUARIO_SISTEMA', 'SISTEMA', `Novo usuário cadastrado no sistema: ${newUser.name} (@${newUser.username})`);
+    return { success: true };
+  };
+
+  const updateUser = (userId: string, updates: Partial<User>): { success: boolean; message?: string } => {
+    if (updates.role === 'admin') {
+      const otherAdmins = users.filter((u) => u.role === 'admin' && u.id !== userId).length;
+      if (otherAdmins >= 2) {
+        return {
+          success: false,
+          message: 'Limite atingido: O SISCOP permite no máximo 2 Administradores cadastrados simultaneamente.',
+        };
+      }
+    }
+
+    setUsers((prev) =>
+      prev.map((u) => {
+        if (u.id === userId) {
+          const updated = { ...u, ...updates };
+          if (currentUser?.id === userId) {
+            setCurrentUser(updated);
+          }
+          return updated;
+        }
+        return u;
+      })
+    );
+    addLog('ATUALIZAR_USUARIO_SISTEMA', 'SISTEMA', `Dados do usuário ID ${userId} atualizados no sistema.`);
+    return { success: true };
+  };
+
+  const deleteUser = (userId: string): { success: boolean; message?: string } => {
+    if (currentUser?.id === userId) {
+      return { success: false, message: 'Você não pode excluir o usuário que está atualmente logado.' };
+    }
+
+    const target = users.find((u) => u.id === userId);
+    if (!target) return { success: false, message: 'Usuário não encontrado.' };
+
+    if (target.role === 'admin') {
+      const remainingAdmins = users.filter((u) => u.role === 'admin' && u.id !== userId).length;
+      if (remainingAdmins < 1) {
+        return { success: false, message: 'Não é possível excluir o único Administrador restante do sistema.' };
+      }
+    }
+
+    setUsers((prev) => prev.filter((u) => u.id !== userId));
+    addLog('EXCLUIR_USUARIO_SISTEMA', 'SISTEMA', `Usuário removido do sistema: ${target.name} (@${target.username})`);
+    return { success: true };
+  };
+
+  const unlockUser = (userId: string, adminPass: string): { success: boolean; message?: string } => {
+    const adminUser = users.find((u) => u.role === 'admin' && (u.password === adminPass || (!u.password && adminPass === 'admin')));
+    if (!adminUser) {
+      return { success: false, message: 'Senha do Administrador inválida para autorizar o desbloqueio.' };
+    }
+
+    setUsers((prev) =>
+      prev.map((u) => {
+        if (u.id === userId) {
+          return {
+            ...u,
+            isLocked: false,
+            failedLoginAttempts: 0,
+            lockedAt: undefined,
+          };
+        }
+        return u;
+      })
+    );
+
+    const target = users.find((u) => u.id === userId);
+    addLog(
+      'DESTRAVAR_USUARIO_SISTEMA',
+      'SISTEMA',
+      `Acesso do usuário ${target?.name || userId} foi destravado com sucesso pelo Administrador ${adminUser.name}.`
+    );
+    return { success: true, message: `Acesso destravado com sucesso para ${target?.name || 'usuário'}!` };
   };
 
   // Control number generation
@@ -1163,6 +1338,21 @@ npm run build
 
       // 2. Garante explicitamente a inclusão de src/context/AppContext.tsx na pasta context
       zip.file('src/context/AppContext.tsx', appContextSelfRaw);
+      zip.file('.npmrc', 'legacy-peer-deps=true\n');
+      zip.file(
+        'vercel.json',
+        JSON.stringify(
+          {
+            buildCommand: 'npm run build',
+            installCommand: 'npm install --legacy-peer-deps',
+            framework: 'vite',
+            outputDirectory: 'dist',
+            rewrites: [{ source: '/(.*)', destination: '/index.html' }],
+          },
+          null,
+          2
+        )
+      );
 
       // 3. Adiciona snapshot da base de dados e manifesto em pasta backup/
       const { filename: dbFilename, json: dbJson } = exportDatabaseJson();
@@ -1302,9 +1492,14 @@ npm run build
         currentUser,
         users,
         login,
+        loginWithAttempts,
         logout,
         switchUser,
         updateUserPassword,
+        addUser,
+        updateUser,
+        deleteUser,
+        unlockUser,
 
         currentView,
         setCurrentView,

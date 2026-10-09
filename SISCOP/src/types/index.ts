@@ -7,9 +7,21 @@ export interface User {
   role: UserRole;
   password?: string;
   cargo: string;
+  matriculaOrCpf?: string;
+  orgaoOrEmpresa?: string;
   active: boolean;
   avatarColor: string;
   lastLogin?: string;
+  failedLoginAttempts?: number;
+  isLocked?: boolean;
+  lockedAt?: string;
+}
+
+export interface LoginResult {
+  success: boolean;
+  isLocked?: boolean;
+  remainingAttempts?: number;
+  message?: string;
 }
 
 export type ModuleType = 'AUTH' | 'GDA' | 'GID_USUARIOS' | 'GID_CHURRASQUEIRA' | 'POP' | 'BACKUP' | 'SISTEMA';
@@ -37,7 +49,13 @@ export type ActionType =
   | 'EXPORTAR_BACKUP_DADOS'
   | 'EXPORTAR_BACKUP_ARQUITETURA'
   | 'EXPORTAR_BACKUP_ZIP'
-  | 'RESTAURAR_BACKUP';
+  | 'RESTAURAR_BACKUP'
+  | 'CRIAR_USUARIO_SISTEMA'
+  | 'ATUALIZAR_USUARIO_SISTEMA'
+  | 'EXCLUIR_USUARIO_SISTEMA'
+  | 'DESTRAVAR_USUARIO_SISTEMA'
+  | 'BLOQUEIO_TENTATIVAS_LOGIN'
+  | 'MUDAR_SENHA_USUARIO';
 
 export interface AuditLog {
   id: string;
