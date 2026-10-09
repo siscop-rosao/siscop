@@ -26,7 +26,7 @@ interface LoginModalProps {
 
 export const LoginModal: React.FC<LoginModalProps> = ({ onClose, isMandatory = false }) => {
   const { users, loginWithAttempts, currentUser, platformSettings } = useApp();
-  const [username, setUsername] = useState(currentUser?.username || 'admin');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -215,44 +215,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, isMandatory = f
           {/* Brilho Superior do Card */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-75" />
 
-          {/* Seletor de Operador (Acesso Rápido Institucional) */}
-          <div className="mb-5 space-y-2">
-            <label className="block text-[11px] font-mono font-bold uppercase tracking-wider text-cyan-300/90">
-              Operador Autorizado:
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {users.map((u) => {
-                const isSelected = username === u.username;
-                return (
-                  <button
-                    key={u.id}
-                    type="button"
-                    onClick={() => {
-                      setUsername(u.username);
-                      setPassword('');
-                      setErrorMsg('');
-                    }}
-                    className={`p-2.5 rounded-xl text-left border transition-all flex items-center gap-2 cursor-pointer ${
-                      isSelected
-                        ? 'bg-cyan-950/80 border-cyan-400 text-white shadow-[0_0_15px_rgba(0,240,255,0.25)] ring-1 ring-cyan-400/50'
-                        : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
-                    }`}
-                  >
-                    <div className={`w-3 h-3 rounded-full ${u.avatarColor} shrink-0 ring-1 ring-white/30`} />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-bold truncate text-white">
-                        {u.name.split(' ')[0]} {u.name.split(' ')[1] || ''}
-                      </div>
-                      <div className="text-[10px] text-slate-400 truncate font-mono">
-                        {u.role === 'admin' ? 'Administrador' : u.role === 'diretor' ? 'Diretor' : 'Operador'}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {/* Formulário de Autenticação */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {errorMsg && (
@@ -262,7 +224,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, isMandatory = f
               </div>
             )}
 
-            {/* Campo Usuário */}
+            {/* Campo Usuário / Matrícula */}
             <div className="space-y-1">
               <label className="block text-[11px] font-mono font-bold text-slate-300 uppercase tracking-wider">
                 Usuário / Matrícula:
@@ -278,11 +240,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, isMandatory = f
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full pl-9.5 pr-4 py-2.5 bg-slate-950/80 border border-slate-700 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 rounded-xl text-xs font-mono text-white placeholder-slate-500 outline-none transition-all"
                   placeholder="Nome de usuário ou matrícula"
+                  autoFocus
                 />
               </div>
             </div>
 
-            {/* Campo Senha */}
+            {/* Campo Senha de Acesso */}
             <div className="space-y-1">
               <label className="block text-[11px] font-mono font-bold text-slate-300 uppercase tracking-wider">
                 Senha de Acesso:
@@ -298,7 +261,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, isMandatory = f
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-9.5 pr-10 py-2.5 bg-slate-950/80 border border-slate-700 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 rounded-xl text-xs font-mono text-white placeholder-slate-500 outline-none transition-all"
                   placeholder="Digite sua senha de segurança"
-                  autoFocus
                 />
                 <button
                   type="button"
@@ -330,13 +292,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, isMandatory = f
               )}
             </button>
           </form>
-
-          {/* Dica de Demonstração / Credenciais */}
-          <div className="mt-4 pt-4 border-t border-slate-800 text-center">
-            <span className="text-[10px] text-slate-400 font-mono">
-              Operadores Padrão: <strong>admin</strong> (senha: <code>admin</code>) ou <strong>operador1</strong> / <strong>diretor</strong> (senha: <code>123</code>)
-            </span>
-          </div>
         </div>
       </div>
 

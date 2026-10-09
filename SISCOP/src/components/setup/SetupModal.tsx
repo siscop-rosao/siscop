@@ -211,7 +211,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({ isOpen, onClose }) => {
         username: formUsername.trim().toLowerCase(),
         matriculaOrCpf: formMatriculaOrCpf.trim() || undefined,
         orgaoOrEmpresa: formOrgaoOrEmpresa.trim() || undefined,
-        cargo: formRole === 'admin' ? 'Administrador do SISCOP' : 'Operador de Atendimento',
+        cargo: formRole === 'admin' ? 'Administrador SISCOP' : 'Operador',
         role: formRole,
         password: formPassword,
         active: true,
@@ -227,13 +227,14 @@ export const SetupModal: React.FC<SetupModalProps> = ({ isOpen, onClose }) => {
       setIsAddUserModalOpen(false);
       resetUserForm();
     } else {
-      // Modo Edição
+      // Modo Edição - Salva nome, nome de usuário livre, cargo/privilégio e demais dados
       const res = updateUser(editingUserId, {
         name: formName.trim(),
+        username: formUsername.trim().toLowerCase(),
         matriculaOrCpf: formMatriculaOrCpf.trim() || undefined,
         orgaoOrEmpresa: formOrgaoOrEmpresa.trim() || undefined,
         role: formRole,
-        cargo: formRole === 'admin' ? 'Administrador do SISCOP' : 'Operador de Atendimento',
+        cargo: formRole === 'admin' ? 'Administrador SISCOP' : 'Operador',
       });
 
       if (!res.success) {
@@ -241,7 +242,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({ isOpen, onClose }) => {
         return;
       }
 
-      showToast(`Dados do usuário ${formName} atualizados com sucesso!`);
+      showToast(`Dados do usuário ${formName} (@${formUsername.trim().toLowerCase()}) atualizados com sucesso!`);
       setIsAddUserModalOpen(false);
       resetUserForm();
     }
@@ -755,11 +756,9 @@ export const SetupModal: React.FC<SetupModalProps> = ({ isOpen, onClose }) => {
                               <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
                                 u.role === 'admin'
                                   ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
-                                  : u.role === 'diretor'
-                                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
                                   : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                               }`}>
-                                {u.role === 'admin' ? 'Administrador do SISCOP' : u.role === 'diretor' ? 'Diretor' : 'Operador'}
+                                {u.role === 'admin' ? 'Administrador SISCOP' : 'Operador'}
                               </span>
 
                               {isCurrentUser && (
@@ -938,14 +937,13 @@ export const SetupModal: React.FC<SetupModalProps> = ({ isOpen, onClose }) => {
                 <input
                   type="text"
                   required
-                  disabled={!!editingUserId}
                   value={formUsername}
                   onChange={(e) => setFormUsername(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none disabled:bg-slate-100 disabled:text-slate-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none"
                   placeholder="Ex: joao.silva"
                 />
                 <span className="text-[10.5px] text-slate-500 mt-0.5 block">
-                  Usado para entrar na tela principal de login.
+                  Livre para escolha. Este será o nome de usuário que você colocará no campo de Login na tela de login da plataforma.
                 </span>
               </div>
 
@@ -986,20 +984,18 @@ export const SetupModal: React.FC<SetupModalProps> = ({ isOpen, onClose }) => {
                 <select
                   value={formRole}
                   onChange={(e) => setFormRole(e.target.value as UserRole)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none bg-white cursor-pointer"
                 >
                   <option
                     value="admin"
                     disabled={adminCount >= 2 && (!editingUserId || users.find(u => u.id === editingUserId)?.role !== 'admin')}
                   >
-                    Administrador do SISCOP {adminCount >= 2 && (!editingUserId || users.find(u => u.id === editingUserId)?.role !== 'admin') ? '(Limite de 2 Atingido)' : ''}
+                    Administrador SISCOP {adminCount >= 2 && (!editingUserId || users.find(u => u.id === editingUserId)?.role !== 'admin') ? '(Limite de 2 Atingido)' : ''}
                   </option>
-                  <option value="operador">Operador de Atendimento & Emissão</option>
-                  <option value="supervisor">Supervisor de Unidade</option>
-                  <option value="diretor">Diretor de Esportes</option>
+                  <option value="operador">Operador</option>
                 </select>
                 <span className="text-[10.5px] text-slate-500 mt-0.5 block">
-                  Regra do SISCOP: No máximo 2 usuários podem ter o privilégio de Administrador.
+                  Regra do SISCOP: Permite que no máximo 2 cadastros tenham o privilégio de Administrador SISCOP.
                 </span>
               </div>
 

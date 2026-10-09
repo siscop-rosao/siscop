@@ -657,6 +657,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateUser = (userId: string, updates: Partial<User>): { success: boolean; message?: string } => {
+    if (updates.username) {
+      const cleanUsername = updates.username.trim().toLowerCase();
+      const conflict = users.find(
+        (u) => u.id !== userId && u.username.toLowerCase() === cleanUsername
+      );
+      if (conflict) {
+        return {
+          success: false,
+          message: 'Já existe outro usuário cadastrado com este nome de login.',
+        };
+      }
+      updates.username = cleanUsername;
+    }
+
     if (updates.role === 'admin') {
       const otherAdmins = users.filter((u) => u.role === 'admin' && u.id !== userId).length;
       if (otherAdmins >= 2) {
