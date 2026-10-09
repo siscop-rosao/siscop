@@ -202,14 +202,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
-  // Current session
+  // Current session (Bloqueado por padrão para conformidade com a LGPD e segurança da informação)
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
       if (saved) return JSON.parse(saved);
-      return INITIAL_USERS[0]; // Default Carlos Alberto
+      return null; // Exige login inicial obrigatório
     } catch {
-      return INITIAL_USERS[0];
+      return null;
     }
   });
 
