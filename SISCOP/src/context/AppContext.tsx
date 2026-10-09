@@ -28,6 +28,7 @@ import {
 } from '../data/initialData';
 import JSZip from 'jszip';
 import appContextSelfRaw from './AppContext.tsx?raw';
+import zipExporterSelfRaw from '../utils/zipExporter.ts?raw';
 import {
   syncCardToFirestore,
   syncAllCardsToFirestore,
@@ -1402,8 +1403,9 @@ npm run build
         }
       }
 
-      // 2. Garante explicitamente a inclusão de src/context/AppContext.tsx na pasta context
+      // 2. Garante explicitamente a inclusão de src/context/AppContext.tsx e src/utils/zipExporter.ts
       zip.file('src/context/AppContext.tsx', appContextSelfRaw);
+      zip.file('src/utils/zipExporter.ts', zipExporterSelfRaw);
       zip.file('.npmrc', 'legacy-peer-deps=true\n');
       zip.file(
         'vercel.json',
