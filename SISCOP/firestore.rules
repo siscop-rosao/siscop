@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Permite leitura e escrita dos associados e carteirinhas
+    match /cards/{cardId} {
+      allow read, write: if true;
+    }
+
+    // Permite leitura e agendamento dos quiosques de churrasqueira
+    match /reservations/{reservationId} {
+      allow read, write: if true;
+    }
+
+    // Procedimentos Operacionais Padrão (POP)
+    match /popProcedures/{popId} {
+      allow read, write: if true;
+    }
+
+    // Trilha de Auditoria: permite leitura e gravação de novos registros; sem deleção
+    match /auditLogs/{logId} {
+      allow read, create: if true;
+      allow update, delete: if false;
+    }
+  }
+}
