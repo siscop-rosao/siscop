@@ -5,6 +5,7 @@ import { BrasaoPousoAlegre } from '../common/BrasaoPousoAlegre';
 import { AcertoCalculatorModal } from '../calculator/AcertoCalculatorModal';
 import { formatBirthDate, formatPhoneNumber, formatCpfNumber } from '../../utils/formatters';
 import { executePrint } from '../../utils/printHelper';
+import { optimizeImageBase64 } from '../../services/imageOptimizer';
 import {
   X,
   Printer,
@@ -100,7 +101,7 @@ export const FichaCadastralModal: React.FC<FichaCadastralModalProps> = ({
   // Photo input ref and upload handler
   const photoInputRef = useRef<HTMLInputElement>(null);
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -109,14 +110,18 @@ export const FichaCadastralModal: React.FC<FichaCadastralModalProps> = ({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (dataUrl) {
-        setFormData((prev) => (prev ? { ...prev, photoUrl: dataUrl } : null));
+    try {
+      const optimized = await optimizeImageBase64(file, {
+        maxWidth: 320,
+        maxHeight: 400,
+        quality: 0.85,
+      });
+      if (optimized) {
+        setFormData((prev) => (prev ? { ...prev, photoUrl: optimized } : null));
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.warn('Erro ao otimizar foto:', err);
+    }
     e.target.value = '';
   };
 

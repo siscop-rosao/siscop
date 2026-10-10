@@ -29,9 +29,10 @@ interface PrintSheetViewerModalProps {
   familyMembers: CardData[];
   allCards: CardData[];
   layoutConfig: CardLayoutConfig;
+  initialMode?: PrintMode;
 }
 
-type PrintMode = 'FAMILY' | 'SINGLE_4X' | 'SINGLE_1X' | 'ALL_ACTIVE';
+export type PrintMode = 'FAMILY' | 'SINGLE_4X' | 'SINGLE_1X' | 'ALL_ACTIVE';
 
 export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
   isOpen,
@@ -40,6 +41,7 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
   familyMembers,
   allCards,
   layoutConfig,
+  initialMode,
 }) => {
   // Dimensões ampliadas da carteirinha na folha de impressão:
   // 100mm x 70mm por face (desdobrada: 204mm x 70mm).
@@ -59,8 +61,14 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
   const cardHeightMm = printCardConfig.cardHeightMm; // 70mm
 
   const [printMode, setPrintMode] = useState<PrintMode>(
-    familyMembers.length > 1 ? 'FAMILY' : 'SINGLE_4X'
+    initialMode || (familyMembers.length > 1 ? 'FAMILY' : 'SINGLE_4X')
   );
+
+  useEffect(() => {
+    if (isOpen && initialMode) {
+      setPrintMode(initialMode);
+    }
+  }, [isOpen, initialMode]);
   const [currentPage, setCurrentPage] = useState(0);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isDownloadingPng, setIsDownloadingPng] = useState(false);
@@ -604,6 +612,7 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
               <div
                 key={idx}
                 className="relative flex flex-col items-center justify-center border-0 bg-white overflow-visible h-full w-[23.5%] shrink-0"
+                style={{ zIndex: 10 - idx }}
               >
                 {card ? (
                   <div className="w-full h-full flex items-center justify-center overflow-visible relative">
@@ -657,6 +666,7 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
                     <div
                       key={slotIdx}
                       className="relative flex flex-col items-center justify-center border-0 bg-white overflow-visible h-full w-[70mm] shrink-0"
+                      style={{ zIndex: 10 - slotIdx }}
                     >
                       {card ? (
                         <div className="w-full h-full flex items-center justify-center overflow-visible relative">

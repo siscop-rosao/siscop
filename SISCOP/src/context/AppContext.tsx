@@ -29,6 +29,13 @@ import {
 import JSZip from 'jszip';
 import appContextSelfRaw from './AppContext.tsx?raw';
 import zipExporterSelfRaw from '../utils/zipExporter.ts?raw';
+import printableCardRaw from '../components/gda/PrintableCard.tsx?raw';
+import printSheetViewerModalRaw from '../components/gda/PrintSheetViewerModal.tsx?raw';
+import firestoreSyncRaw from '../services/firestoreSync.ts?raw';
+import firebaseRaw from '../services/firebase.ts?raw';
+import imageOptimizerRaw from '../services/imageOptimizer.ts?raw';
+import backupManagerModalRaw from '../components/backup/BackupManagerModal.tsx?raw';
+import navbarRaw from '../components/navigation/Navbar.tsx?raw';
 import {
   syncCardToFirestore,
   syncAllCardsToFirestore,
@@ -45,6 +52,7 @@ import {
   subscribeToPlatformSettings,
   syncLayoutConfigToFirestore,
   subscribeToLayoutConfig,
+  syncFullDatabaseToFirestore,
 } from '../services/firestoreSync';
 
 export const formatBackupFilename = (prefix = 'Backup_DataBase'): string => {
@@ -191,6 +199,10 @@ interface AppContextType {
   lastRestoredBackup: BackupRestoreRecord | null;
   recordGeneratedBackup: (record: BackupGenerationRecord) => void;
   recordRestoredBackup: (record: BackupRestoreRecord) => void;
+
+  // Cloud Sync (Firebase Firestore)
+  syncWithCloudNow: () => Promise<{ success: boolean; count: number; error?: string }>;
+  isCloudSyncing: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -479,11 +491,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [platformSettings]);
 
+  const [isCloudSyncing, setIsCloudSyncing] = useState<boolean>(false);
+
   // Sincronização inteligente e não-destrutiva em tempo real com o Cloud Firestore
   useEffect(() => {
     try {
       const unsubCards = subscribeToCards((remoteCards) => {
-        if (!Array.isArray(remoteCards) || remoteCards.length === 0) return;
+        if (!Array.isArray(remoteCards)) return;
+
+        // Se a nuvem estiver vazia, efetua o seed inicial dos cadastros locais para o Firestore
+        if (remoteCards.length === 0) {
+          setCards((currentLocal) => {
+            if (currentLocal.length > 0) {
+              syncAllCardsToFirestore(currentLocal);
+            }
+            return currentLocal;
+          });
+          return;
+        }
 
         setCards((currentLocal) => {
           const map = new Map<string, CardData>();
@@ -522,7 +547,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       const unsubRes = subscribeToReservations((remoteRes) => {
-        if (!Array.isArray(remoteRes) || remoteRes.length === 0) return;
+        if (!Array.isArray(remoteRes)) return;
+
+        if (remoteRes.length === 0) {
+          setReservations((currentLocal) => {
+            if (currentLocal.length > 0) {
+              syncAllReservationsToFirestore(currentLocal);
+            }
+            return currentLocal;
+          });
+          return;
+        }
 
         setReservations((currentLocal) => {
           const map = new Map<string, BarbecueReservation>();
@@ -545,7 +580,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       const unsubUsers = subscribeToUsers((remoteUsers) => {
-        if (!Array.isArray(remoteUsers) || remoteUsers.length === 0) return;
+        if (!Array.isArray(remoteUsers)) return;
+
+        if (remoteUsers.length === 0) {
+          setUsers((currentLocal) => {
+            if (currentLocal.length > 0) {
+              syncAllUsersToFirestore(currentLocal);
+            }
+            return currentLocal;
+          });
+          return;
+        }
+
         setUsers((currentLocal) => {
           const map = new Map<string, User>();
           for (const u of currentLocal) {
@@ -1477,9 +1523,16 @@ npm run build
         }
       }
 
-      // 2. Garante explicitamente a inclusão de src/context/AppContext.tsx e src/utils/zipExporter.ts
+      // 2. Garante explicitamente a inclusão dos arquivos atualizados
       zip.file('src/context/AppContext.tsx', appContextSelfRaw);
       zip.file('src/utils/zipExporter.ts', zipExporterSelfRaw);
+      zip.file('src/components/gda/PrintSheetViewerModal.tsx', printSheetViewerModalRaw);
+      zip.file('src/components/gda/PrintableCard.tsx', printableCardRaw);
+      zip.file('src/components/backup/BackupManagerModal.tsx', backupManagerModalRaw);
+      zip.file('src/components/navigation/Navbar.tsx', navbarRaw);
+      zip.file('src/services/firestoreSync.ts', firestoreSyncRaw);
+      zip.file('src/services/firebase.ts', firebaseRaw);
+      zip.file('src/services/imageOptimizer.ts', imageOptimizerRaw);
       zip.file('.npmrc', 'legacy-peer-deps=true\n');
       zip.file(
         'vercel.json',
@@ -1628,6 +1681,29 @@ npm run build
     localStorage.clear();
   };
 
+  const syncWithCloudNow = async (): Promise<{ success: boolean; count: number; error?: string }> => {
+    setIsCloudSyncing(true);
+    try {
+      const res = await syncFullDatabaseToFirestore({
+        cards,
+        users,
+        reservations,
+        settings: platformSettings,
+        layoutConfig,
+      });
+      if (res.success) {
+        addLog(
+          'EXPORTAR_BACKUP_DADOS',
+          'SISTEMA',
+          `Sincronizou ${res.count} registros com o Cloud Firestore com sucesso.`
+        );
+      }
+      return res;
+    } finally {
+      setIsCloudSyncing(false);
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -1709,6 +1785,9 @@ npm run build
         lastRestoredBackup,
         recordGeneratedBackup,
         recordRestoredBackup,
+
+        syncWithCloudNow,
+        isCloudSyncing,
       }}
     >
       {children}

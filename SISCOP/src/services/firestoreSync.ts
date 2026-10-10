@@ -328,3 +328,73 @@ export function subscribeToLayoutConfig(onUpdate: (layout: CardLayoutConfig) => 
     return () => {};
   }
 }
+
+/**
+ * Força a sincronização integral de todos os dados locais para o Firestore
+ * (Carteirinhas, Usuários, Reservas, Configurações e Layout de Impressão)
+ */
+export async function syncFullDatabaseToFirestore(params: {
+  cards: CardData[];
+  users: User[];
+  reservations: BarbecueReservation[];
+  settings: PlatformSettings;
+  layoutConfig: CardLayoutConfig;
+}): Promise<{ success: boolean; count: number; error?: string }> {
+  if (!db) {
+    return { success: false, count: 0, error: 'Firebase Firestore não inicializado.' };
+  }
+
+  try {
+    let syncedCount = 0;
+
+    // 1. Sincroniza todas as carteirinhas
+    for (const card of params.cards) {
+      if (card && card.id) {
+        await syncCardToFirestore(card);
+        syncedCount++;
+      }
+    }
+
+    // 2. Sincroniza todos os usuários
+    for (const user of params.users) {
+      if (user && user.id) {
+        await syncUserToFirestore(user);
+        syncedCount++;
+      }
+    }
+
+    // 3. Sincroniza todas as reservas
+    for (const res of params.reservations) {
+      if (res && res.id) {
+        await syncReservationToFirestore(res);
+        syncedCount++;
+      }
+    }
+
+    // 4. Sincroniza configurações e layout
+    if (params.settings) {
+      await syncPlatformSettingsToFirestore(params.settings);
+      syncedCount++;
+    }
+    if (params.layoutConfig) {
+      await syncLayoutConfigToFirestore(params.layoutConfig);
+      syncedCount++;
+    }
+
+    // 5. Registra ping de integridade
+    const pingDoc = doc(db, 'systemStatus', 'lastSync');
+    await setDoc(pingDoc, {
+      syncedAt: new Date().toISOString(),
+      totalRecords: syncedCount,
+    }, { merge: true });
+
+    return { success: true, count: syncedCount };
+  } catch (err: any) {
+    console.error('[Firestore] Erro na sincronização integral:', err);
+    return {
+      success: false,
+      count: 0,
+      error: err?.message || 'Falha ao sincronizar com o banco de dados.',
+    };
+  }
+}

@@ -21,5 +21,30 @@ service cloud.firestore {
       allow read, create: if true;
       allow update, delete: if false;
     }
+
+    // Usuários e operadores do sistema (Setup de Acesso)
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Configurações da plataforma (Identidade Visual, Brasão, Banner, Títulos)
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    // Layout de impressão da carteirinha
+    match /layoutConfig/{layoutId} {
+      allow read, write: if true;
+    }
+
+    // Status e verificação de conectividade em tempo real
+    match /systemStatus/{statusId} {
+      allow read, write: if true;
+    }
+
+    // Regra geral de segurança para coleções operacionais do SISCOP
+    match /{document=**} {
+      allow read, write: if true;
+    }
   }
 }

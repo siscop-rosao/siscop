@@ -3,6 +3,7 @@ import { CardData, CardLayoutConfig } from '../../types';
 import { BrasaoPousoAlegre } from '../common/BrasaoPousoAlegre';
 import { Scissors, Camera, Trash2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { optimizeImageBase64 } from '../../services/imageOptimizer';
 
 interface PrintableCardProps {
   card: CardData;
@@ -34,20 +35,24 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
+      try {
+        const optimized = await optimizeImageBase64(file, {
+          maxWidth: 320,
+          maxHeight: 400,
+          quality: 0.85,
+        });
         if (onPhotoChange) {
-          onPhotoChange(result);
+          onPhotoChange(optimized);
         }
         if (card.id) {
-          updateCard(card.id, { photoUrl: result });
+          updateCard(card.id, { photoUrl: optimized });
         }
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        console.warn('Falha ao otimizar foto:', err);
+      }
     }
     if (e.target) e.target.value = '';
   };
@@ -70,12 +75,13 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
 
   return (
     <div
-      className={`relative inline-flex transition-transform origin-top select-none print:shadow-none ${
+      className={`relative inline-flex transition-transform origin-top select-none print:shadow-none box-border ${
         config.foldOrientation === 'horizontal' ? 'flex-row items-stretch' : 'flex-col items-center'
       } ${className}`}
       style={{
         transform: scale !== 1 ? `scale(${scale})` : undefined,
         transformOrigin: 'top center',
+        borderBottom: config.foldOrientation === 'horizontal' ? '2px solid #0f172a' : undefined,
       }}
     >
       {/* ================= FRENTE DA CARTEIRINHA ================= */}
@@ -91,7 +97,7 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
             border: config.showBorder
               ? `${config.borderWidth}px solid ${config.borderColor}`
               : '1px solid #cbd5e1',
-            borderBottom: '1.5px solid #0f172a',
+            borderBottom: '2px solid #0f172a',
           backgroundColor: config.cardBackground,
           fontFamily:
             config.fontFamily === 'Courier'
@@ -314,7 +320,7 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
       {renderOnly !== 'front' && (
       <div
         id={`card-back-${card.id}`}
-        className={`relative bg-white text-slate-900 overflow-hidden box-border pt-0.5 px-1.5 pb-1 flex flex-col justify-between shadow-xs print:shadow-none ${
+        className={`relative bg-white text-slate-900 overflow-hidden box-border pt-0.5 px-1.5 pb-0.5 flex flex-col justify-between shadow-xs print:shadow-none ${
           config.rotateVerso180 ? 'rotate-180' : ''
         }`}
         style={{
@@ -325,7 +331,7 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
           border: config.showBorder
             ? `${config.borderWidth}px solid ${config.borderColor}`
             : '1px solid #cbd5e1',
-          borderBottom: '1.5px solid #0f172a',
+          borderBottom: '2px solid #0f172a',
           backgroundColor: config.cardBackground,
           fontFamily:
             config.fontFamily === 'Courier'
@@ -336,7 +342,7 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
         }}
       >
         {/* DOIS QUADROS LADO A LADO - Estendidos para o topo da carteirinha */}
-        <div className="grid grid-cols-2 gap-1.5 flex-1 min-h-0">
+        <div className="grid grid-cols-2 gap-1.5 flex-1 min-h-0 overflow-hidden">
           {/* Quadro 1 (Ano 1) */}
           <div className="border border-slate-900 rounded-xs flex flex-col overflow-hidden h-full">
             {/* Primeira linha com Ano 20____ */}
@@ -402,13 +408,13 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
           </div>
         </div>
 
-        {/* Rodapé do Verso: NÃO PLASTIFICAR */}
-        <div className="mt-0.5 border-t border-slate-300 pt-0.5 flex flex-col items-center justify-center w-full shrink-0">
-          <span className="text-[10px] font-black text-center text-slate-950 tracking-wide uppercase leading-none whitespace-nowrap">
+        {/* Rodapé do Verso: NÃO PLASTIFICAR com Linha de Corte Destacada */}
+        <div className="mt-0.5 border-t border-slate-300 pt-0.5 pb-0 flex flex-col items-center justify-center w-full shrink-0">
+          <span className="text-[9.5px] font-black text-center text-slate-950 tracking-wide uppercase leading-none whitespace-nowrap">
             NÃO PLASTIFICAR
           </span>
           {/* Linha de corte / borda lateral obrigatória abaixo do NÃO PLASTIFICAR (corredor de corte) */}
-          <div className="w-full border-b-[1.5px] border-slate-900 mt-0.5" style={{ minHeight: '1.5px' }} />
+          <div className="w-full border-b-[2px] border-slate-950 mt-1" style={{ minHeight: '2px', height: '2px' }} />
         </div>
       </div>
       )}

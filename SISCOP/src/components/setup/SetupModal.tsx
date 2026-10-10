@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { BrasaoPousoAlegre } from '../common/BrasaoPousoAlegre';
 import { validatePasswordRules } from '../../utils/passwordValidator';
 import { User, UserRole } from '../../types';
+import { optimizeImageBase64 } from '../../services/imageOptimizer';
 import {
   X,
   Upload,
@@ -100,7 +101,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({ isOpen, onClose }) => {
   };
 
   // Upload navbar logo
-  const handleNavbarLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNavbarLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -109,20 +110,25 @@ export const SetupModal: React.FC<SetupModalProps> = ({ isOpen, onClose }) => {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      if (dataUrl) {
-        uploadNavbarLogo(dataUrl);
+    try {
+      const optimized = await optimizeImageBase64(file, {
+        maxWidth: 360,
+        maxHeight: 360,
+        quality: 0.88,
+        mimeType: 'image/png',
+      });
+      if (optimized) {
+        uploadNavbarLogo(optimized);
         showToast('Brasão da barra fixa atualizado com sucesso!');
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.warn('Erro ao otimizar brasão:', err);
+    }
     e.target.value = '';
   };
 
   // Upload high-resolution dashboard banner
-  const handleDashboardBannerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDashboardBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -131,15 +137,20 @@ export const SetupModal: React.FC<SetupModalProps> = ({ isOpen, onClose }) => {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      if (dataUrl) {
-        uploadDashboardBanner(dataUrl);
+    try {
+      const optimized = await optimizeImageBase64(file, {
+        maxWidth: 1280,
+        maxHeight: 480,
+        quality: 0.82,
+        mimeType: 'image/jpeg',
+      });
+      if (optimized) {
+        uploadDashboardBanner(optimized);
         showToast('Imagem de alta resolução do Dashboard atualizada com sucesso!');
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.warn('Erro ao otimizar banner:', err);
+    }
     e.target.value = '';
   };
 

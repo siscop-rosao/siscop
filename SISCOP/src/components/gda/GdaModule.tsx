@@ -3,7 +3,8 @@ import { useApp } from '../../context/AppContext';
 import { CardData, CategoryType } from '../../types';
 import { PrintableCard } from './PrintableCard';
 import { FoldSimulatorModal } from './FoldSimulatorModal';
-import { PrintSheetViewerModal } from './PrintSheetViewerModal';
+import { PrintSheetViewerModal, PrintMode } from './PrintSheetViewerModal';
+import { optimizeImageBase64 } from '../../services/imageOptimizer';
 import { GdaReportsView } from './GdaReportsView';
 import { GdaLatestRecordsView } from './GdaLatestRecordsView';
 import { BrasaoPousoAlegre } from '../common/BrasaoPousoAlegre';
@@ -86,6 +87,7 @@ export const GdaModule: React.FC = () => {
   const [showConfigDrawer, setShowConfigDrawer] = useState<boolean>(false);
   const [showFoldModal, setShowFoldModal] = useState<boolean>(false);
   const [showPrintSheetModal, setShowPrintSheetModal] = useState<boolean>(false);
+  const [printSheetInitialMode, setPrintSheetInitialMode] = useState<PrintMode>('SINGLE_4X');
   const [saveToast, setSaveToast] = useState<boolean>(false);
 
   // Control Number Validation & Duplicate Alert State
@@ -125,15 +127,20 @@ export const GdaModule: React.FC = () => {
   }, [activeCard, layoutConfig.directorLabel]);
 
   // Handle Coat of Arms Image Upload
-  const handleCoatOfArmsUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoatOfArmsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        updateCoatOfArms(result);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const optimized = await optimizeImageBase64(file, {
+          maxWidth: 400,
+          maxHeight: 400,
+          quality: 0.88,
+          mimeType: 'image/png',
+        });
+        updateCoatOfArms(optimized);
+      } catch (err) {
+        console.warn('Falha ao otimizar brasão:', err);
+      }
     }
   };
 
@@ -224,6 +231,7 @@ export const GdaModule: React.FC = () => {
   const handlePrintSingle = () => {
     if (!activeCard) return;
     incrementPrintedCount(activeCard.id);
+    setPrintSheetInitialMode('SINGLE_1X');
     setShowPrintSheetModal(true);
   };
 
@@ -1048,6 +1056,7 @@ export const GdaModule: React.FC = () => {
           familyMembers={familyMembers}
           allCards={cards}
           layoutConfig={layoutConfig}
+          initialMode={printSheetInitialMode}
         />
       )}
 

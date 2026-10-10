@@ -7,6 +7,10 @@ import {
 } from '../../context/AppContext';
 import appContextRaw from '../../context/AppContext.tsx?raw';
 import zipExporterRaw from '../../utils/zipExporter.ts?raw';
+import printableCardRaw from '../gda/PrintableCard.tsx?raw';
+import printSheetViewerModalRaw from '../gda/PrintSheetViewerModal.tsx?raw';
+import firestoreSyncRaw from '../../services/firestoreSync.ts?raw';
+import imageOptimizerRaw from '../../services/imageOptimizer.ts?raw';
 import {
   X,
   Database,
@@ -17,6 +21,7 @@ import {
   RefreshCw,
   AlertTriangle,
   CheckCircle,
+  Cloud,
   FileText,
   Clock,
   Copy,
@@ -46,9 +51,16 @@ export const BackupManagerModal: React.FC<BackupManagerModalProps> = ({ isOpen, 
     resetAllToFactoryDefaults,
     lastGeneratedBackup,
     lastRestoredBackup,
+    syncWithCloudNow,
+    isCloudSyncing,
   } = useApp();
 
   const [importStatus, setImportStatus] = useState<{
+    type: 'success' | 'error' | null;
+    message: string;
+  }>({ type: null, message: '' });
+
+  const [cloudSyncFeedback, setCloudSyncFeedback] = useState<{
     type: 'success' | 'error' | null;
     message: string;
   }>({ type: null, message: '' });
@@ -120,6 +132,85 @@ export const BackupManagerModal: React.FC<BackupManagerModalProps> = ({ isOpen, 
     URL.revokeObjectURL(url);
     setDownloadSuccessToast('Arquivo zipExporter.ts baixado! Basta arrastá-lo para dentro do GitHub em SISCOP/src/utils/.');
     setTimeout(() => setDownloadSuccessToast(null), 6000);
+  };
+
+  const handleDownloadPrintableCardFile = () => {
+    const blob = new Blob([printableCardRaw], { type: 'text/typescript;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'PrintableCard.tsx';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setDownloadSuccessToast('Arquivo PrintableCard.tsx baixado! Basta arrastá-lo para dentro do GitHub em SISCOP/src/components/gda/.');
+    setTimeout(() => setDownloadSuccessToast(null), 6000);
+  };
+
+  const handleDownloadPrintSheetViewerFile = () => {
+    const blob = new Blob([printSheetViewerModalRaw], { type: 'text/typescript;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'PrintSheetViewerModal.tsx';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setDownloadSuccessToast('Arquivo PrintSheetViewerModal.tsx baixado! Basta arrastá-lo para dentro do GitHub em SISCOP/src/components/gda/.');
+    setTimeout(() => setDownloadSuccessToast(null), 6000);
+  };
+
+  const handleDownloadFirestoreSyncFile = () => {
+    const blob = new Blob([firestoreSyncRaw], { type: 'text/typescript;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'firestoreSync.ts';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setDownloadSuccessToast('Arquivo firestoreSync.ts baixado! Basta arrastá-lo para dentro do GitHub em SISCOP/src/services/.');
+    setTimeout(() => setDownloadSuccessToast(null), 6000);
+  };
+
+  const handleDownloadImageOptimizerFile = () => {
+    const blob = new Blob([imageOptimizerRaw], { type: 'text/typescript;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'imageOptimizer.ts';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setDownloadSuccessToast('Arquivo imageOptimizer.ts baixado! Basta arrastá-lo para dentro do GitHub em SISCOP/src/services/.');
+    setTimeout(() => setDownloadSuccessToast(null), 6000);
+  };
+
+  const handleManualCloudSync = async () => {
+    setCloudSyncFeedback({ type: null, message: '' });
+    try {
+      const res = await syncWithCloudNow();
+      if (res.success) {
+        setCloudSyncFeedback({
+          type: 'success',
+          message: `Sincronização com Cloud Firestore realizada com êxito! ${res.count} registros e configurações estão vigentes na nuvem para acesso simultâneo em qualquer máquina.`,
+        });
+      } else {
+        setCloudSyncFeedback({
+          type: 'error',
+          message: `Falha na sincronização com a nuvem: ${res.error || 'Verifique sua conexão à internet.'}`,
+        });
+      }
+    } catch (err: any) {
+      setCloudSyncFeedback({
+        type: 'error',
+        message: 'Ocorreu um erro ao comunicar com os servidores do Firebase.',
+      });
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -544,27 +635,73 @@ export const BackupManagerModal: React.FC<BackupManagerModalProps> = ({ isOpen, 
                   ★ Arquivo .ZIP real contendo src/, configs, package.json e README para GitHub e Vercel.
                 </div>
 
-                {/* BOTÕES DIRETOS DE ARQUIVOS CORRIGIDOS */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={handleDownloadAppContextFile}
-                    className="w-full py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all active:scale-[0.99] cursor-pointer"
-                    title="Baixa diretamente o arquivo AppContext.tsx atualizado e limpo, pronto para subir no GitHub em SISCOP/src/context/"
-                  >
-                    <Download className="w-4 h-4 text-blue-200" />
-                    <span>Baixar AppContext.tsx</span>
-                  </button>
+                {/* SEÇÃO: ARQUIVOS ESPECÍFICOS PARA ATUALIZAR NO GITHUB */}
+                <div className="bg-slate-900/90 border border-slate-700 rounded-xl p-3 space-y-2">
+                  <div className="text-[11px] font-bold text-slate-200 flex items-center justify-between">
+                    <span>Baixar Arquivos Individuais Atualizados:</span>
+                    <span className="text-[10px] text-emerald-400 font-mono">100% Sincronizados</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={handleDownloadPrintableCardFile}
+                      className="w-full py-2 px-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold flex items-center justify-between border border-slate-600 shadow-2xs transition-colors cursor-pointer"
+                      title="Salvar em SISCOP/src/components/gda/PrintableCard.tsx"
+                    >
+                      <span className="truncate">PrintableCard.tsx</span>
+                      <Download className="w-3.5 h-3.5 text-emerald-400 shrink-0 ml-1" />
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={handleDownloadZipExporterFile}
-                    className="w-full py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all active:scale-[0.99] cursor-pointer"
-                    title="Baixa diretamente o arquivo zipExporter.ts para resolver o módulo no GitHub em SISCOP/src/utils/"
-                  >
-                    <Download className="w-4 h-4 text-indigo-200" />
-                    <span>Baixar zipExporter.ts</span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadPrintSheetViewerFile}
+                      className="w-full py-2 px-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold flex items-center justify-between border border-slate-600 shadow-2xs transition-colors cursor-pointer"
+                      title="Salvar em SISCOP/src/components/gda/PrintSheetViewerModal.tsx"
+                    >
+                      <span className="truncate">PrintSheetViewerModal.tsx</span>
+                      <Download className="w-3.5 h-3.5 text-emerald-400 shrink-0 ml-1" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDownloadAppContextFile}
+                      className="w-full py-2 px-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold flex items-center justify-between border border-slate-600 shadow-2xs transition-colors cursor-pointer"
+                      title="Salvar em SISCOP/src/context/AppContext.tsx"
+                    >
+                      <span className="truncate">AppContext.tsx</span>
+                      <Download className="w-3.5 h-3.5 text-blue-400 shrink-0 ml-1" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDownloadZipExporterFile}
+                      className="w-full py-2 px-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold flex items-center justify-between border border-slate-600 shadow-2xs transition-colors cursor-pointer"
+                      title="Salvar em SISCOP/src/utils/zipExporter.ts"
+                    >
+                      <span className="truncate">zipExporter.ts</span>
+                      <Download className="w-3.5 h-3.5 text-indigo-400 shrink-0 ml-1" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDownloadFirestoreSyncFile}
+                      className="w-full py-2 px-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold flex items-center justify-between border border-slate-600 shadow-2xs transition-colors cursor-pointer"
+                      title="Salvar em SISCOP/src/services/firestoreSync.ts"
+                    >
+                      <span className="truncate">firestoreSync.ts</span>
+                      <Download className="w-3.5 h-3.5 text-teal-400 shrink-0 ml-1" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDownloadImageOptimizerFile}
+                      className="w-full py-2 px-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold flex items-center justify-between border border-slate-600 shadow-2xs transition-colors cursor-pointer"
+                      title="Salvar em SISCOP/src/services/imageOptimizer.ts"
+                    >
+                      <span className="truncate">imageOptimizer.ts</span>
+                      <Download className="w-3.5 h-3.5 text-amber-400 shrink-0 ml-1" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* BOTÃO SECUNDÁRIO: FORMATO JSON */}
@@ -579,6 +716,64 @@ export const BackupManagerModal: React.FC<BackupManagerModalProps> = ({ isOpen, 
                 </button>
               </div>
             </div>
+          </div>
+
+          {/* ================= SEÇÃO DE SINCRONIZAÇÃO EM NUVEM (FIREBASE FIRESTORE) ================= */}
+          <div className="bg-gradient-to-r from-blue-900 to-indigo-950 text-white rounded-xl p-5 border border-blue-800 shadow-sm space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 bg-blue-600 rounded-lg shadow-sm">
+                  <Cloud className="w-5 h-5 text-white" />
+                </span>
+                <div>
+                  <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                    Sincronização em Nuvem • Google Firebase Firestore
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-400/30 font-semibold">
+                      ● Ativa
+                    </span>
+                  </h3>
+                  <p className="text-xs text-blue-200">
+                    Garante que cadastros e imagens inseridos em uma máquina fiquem disponíveis imediatamente em qualquer outro computador.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleManualCloudSync}
+                disabled={isCloudSyncing}
+                className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition-all active:scale-95 cursor-pointer"
+              >
+                {isCloudSyncing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-emerald-200" />
+                    <span>Sincronizando com Firestore...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 text-emerald-200" />
+                    <span>Sincronizar Tudo com a Nuvem Agora</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {cloudSyncFeedback && cloudSyncFeedback.message && (
+              <div
+                className={`p-3 rounded-lg text-xs font-medium flex items-center gap-2 border ${
+                  cloudSyncFeedback.type === 'success'
+                    ? 'bg-emerald-950/80 text-emerald-200 border-emerald-700'
+                    : 'bg-rose-950/80 text-rose-200 border-rose-700'
+                }`}
+              >
+                {cloudSyncFeedback.type === 'success' ? (
+                  <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                )}
+                <span>{cloudSyncFeedback.message}</span>
+              </div>
+            )}
           </div>
 
           {/* RESTORE SECTION */}

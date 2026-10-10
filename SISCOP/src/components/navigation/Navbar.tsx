@@ -18,6 +18,7 @@ import {
   Info,
   Search,
   Calculator,
+  Cloud,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -451,6 +452,18 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <Calculator className="w-4 h-4 text-emerald-400 shrink-0" />
           <span className="text-[10px] font-bold leading-none tracking-tight">Calc</span>
+        </button>
+
+        <button
+          onClick={onOpenBackup}
+          className="h-[46px] min-h-[46px] max-h-[46px] box-border px-3 py-1 rounded-xl border border-blue-900/60 bg-blue-950/60 hover:bg-blue-900/80 text-blue-200 transition-all shadow-xs cursor-pointer flex flex-col items-center justify-center gap-0.5 select-none"
+          title="Google Cloud Firestore Conectado - Clique para ver o Centro de Backup e Sincronização em Nuvem"
+        >
+          <div className="flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <Cloud className="w-3.5 h-3.5 text-blue-300" />
+          </div>
+          <span className="text-[9px] font-bold leading-none tracking-tight text-blue-200">Nuvem</span>
         </button>
       </div>
 
