@@ -201,6 +201,14 @@
   }
 
   /* -----------------------------------------------------------------------
+     CASO 6: RELATÓRIO DE VÍNCULOS EXISTENTES (GID - RETRATO A4)
+     ----------------------------------------------------------------------- */
+  body.printing-vinculos-report header,
+  body.printing-vinculos-report main {
+    display: none !important;
+  }
+
+  /* -----------------------------------------------------------------------
      CASO 6: MEMÓRIA DE CÁLCULO DA CALCULADORA DE ACERTO (RETRATO)
      ----------------------------------------------------------------------- */
   body.printing-memoria-calculo header,

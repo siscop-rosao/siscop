@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { CardData, CategoryType, BarbecueReservation } from '../../types';
 import { RichTextEditor } from '../common/RichTextEditor';
 import { AnnualChurrasqueiraCalendar } from './AnnualChurrasqueiraCalendar';
 import { FichaCadastralModal } from './FichaCadastralModal';
-import { formatBirthDate, formatPhoneNumber, formatCpfNumber } from '../../utils/formatters';
+import { VinculosReportModal } from './VinculosReportModal';
+import { formatBirthDate, formatPhoneNumber, formatCpfNumber, formatCepNumber } from '../../utils/formatters';
 import {
   Users,
   Flame,
@@ -26,6 +27,8 @@ import {
   Eye,
   ChevronDown,
   ChevronUp,
+  Link2,
+  ArrowRight,
 } from 'lucide-react';
 
 export const GidModule: React.FC = () => {
@@ -73,16 +76,85 @@ export const GidModule: React.FC = () => {
   // New member modal
   const [showNewMemberModal, setShowNewMemberModal] = useState(false);
   const [docType, setDocType] = useState<'CPF' | 'RG' | 'LAUDO'>('CPF');
+  const procuracaoDateInputRef = useRef<HTMLInputElement>(null);
+
   const [newMemberData, setNewMemberData] = useState({
     name: '',
     birthDate: '',
     phone: '',
     rgOrCpf: '',
     address: '',
+    addressNumber: '',
+    addressComplement: '',
+    neighborhood: '',
+    cep: '',
     category: gidSubTab as CategoryType,
     isTitular: true,
     specialCondition: '',
+    linkedPlanNumbers: ['', '', '', '', ''],
+    procuracao: {
+      hasProcuracao: false,
+      dataProcuracao: '',
+      nomeOutorgado: '',
+      cpfOutorgado: '',
+      autorizacoes: {
+        retiradaCarteirinha: false,
+        retiradaBoletos: false,
+        cancelamentoPlano: false,
+      },
+    },
+    notesHtml: '',
   });
+
+  // Relatório de Vínculos Existentes modal
+  const [showVinculosModal, setShowVinculosModal] = useState(false);
+  const [vinculosTargetAssociate, setVinculosTargetAssociate] = useState<CardData | null>(null);
+
+  // Resultados da busca de vínculo nos 5 espaços
+  const [linkedPlanSearchResults, setLinkedPlanSearchResults] = useState<
+    Record<number, { text: string; success: boolean; foundCard?: CardData } | null>
+  >({});
+
+  const handleSearchLinkedPlan = (index: number, planNum: string) => {
+    const clean = planNum.trim();
+    if (!clean) {
+      setLinkedPlanSearchResults((prev) => ({
+        ...prev,
+        [index]: { text: 'Informe um número de plano para pesquisar.', success: false },
+      }));
+      return;
+    }
+
+    const norm = clean.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const found = cards.find((c) => {
+      const cNorm = c.controlNumber.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      return (
+        cNorm === norm ||
+        cNorm.includes(norm) ||
+        norm.includes(cNorm) ||
+        c.controlNumber.toLowerCase().includes(clean.toLowerCase())
+      );
+    });
+
+    if (found) {
+      setLinkedPlanSearchResults((prev) => ({
+        ...prev,
+        [index]: {
+          text: `✓ Localizado: ${found.name} (${found.controlNumber} • ${found.category})`,
+          success: true,
+          foundCard: found,
+        },
+      }));
+    } else {
+      setLinkedPlanSearchResults((prev) => ({
+        ...prev,
+        [index]: {
+          text: `Plano "${clean}" não encontrado no banco de dados.`,
+          success: false,
+        },
+      }));
+    }
+  };
 
   // Keep modal category in sync when tab changes and ensure Plano Familiar families are retracted by default
   useEffect(() => {
@@ -207,6 +279,10 @@ export const GidModule: React.FC = () => {
     if (!newMemberData.name.trim()) return;
 
     const isSpecial = newMemberData.category === 'PLANO_ESPECIAL';
+    const hasProc =
+      newMemberData.procuracao.hasProcuracao ||
+      Boolean(newMemberData.procuracao.nomeOutorgado?.trim()) ||
+      Boolean(newMemberData.procuracao.dataProcuracao);
 
     addCard({
       name: newMemberData.name,
@@ -214,6 +290,20 @@ export const GidModule: React.FC = () => {
       phone: newMemberData.phone,
       rgOrCpf: newMemberData.rgOrCpf,
       address: newMemberData.address,
+      addressNumber: newMemberData.addressNumber,
+      addressComplement: newMemberData.addressComplement,
+      neighborhood: newMemberData.neighborhood,
+      cep: newMemberData.cep,
+      linkedPlanNumbers: newMemberData.linkedPlanNumbers.map((p) => p.trim()).filter(Boolean),
+      procuracao: hasProc
+        ? {
+            hasProcuracao: true,
+            dataProcuracao: newMemberData.procuracao.dataProcuracao,
+            nomeOutorgado: newMemberData.procuracao.nomeOutorgado?.trim(),
+            cpfOutorgado: newMemberData.procuracao.cpfOutorgado?.trim(),
+            autorizacoes: newMemberData.procuracao.autorizacoes,
+          }
+        : undefined,
       category: newMemberData.category,
       planType: isSpecial
         ? 'ESPECIAL'
@@ -223,11 +313,13 @@ export const GidModule: React.FC = () => {
       isTitular: true,
       isSpecialExempt: isSpecial,
       specialCondition: isSpecial ? newMemberData.specialCondition || 'PCD / Necessidade Especial' : undefined,
-      notesHtml: `<div><strong>Registro criado em:</strong> ${new Date().toLocaleDateString('pt-BR')}</div>${
-        isSpecial
-          ? `<p><strong>Condição / Benefício:</strong> ${newMemberData.specialCondition || 'Plano Especial Isento'} - Isenção integral de mensalidade.</p>`
-          : ''
-      }`,
+      notesHtml: newMemberData.notesHtml.trim()
+        ? newMemberData.notesHtml
+        : `<div><strong>Registro criado em:</strong> ${new Date().toLocaleDateString('pt-BR')}</div>${
+            isSpecial
+              ? `<p><strong>Condição / Benefício:</strong> ${newMemberData.specialCondition || 'Plano Especial Isento'} - Isenção integral de mensalidade.</p>`
+              : ''
+          }`,
     });
 
     setShowNewMemberModal(false);
@@ -237,10 +329,28 @@ export const GidModule: React.FC = () => {
       phone: '',
       rgOrCpf: '',
       address: '',
+      addressNumber: '',
+      addressComplement: '',
+      neighborhood: '',
+      cep: '',
       category: gidSubTab as CategoryType,
       isTitular: true,
       specialCondition: '',
+      linkedPlanNumbers: ['', '', '', '', ''],
+      procuracao: {
+        hasProcuracao: false,
+        dataProcuracao: '',
+        nomeOutorgado: '',
+        cpfOutorgado: '',
+        autorizacoes: {
+          retiradaCarteirinha: false,
+          retiradaBoletos: false,
+          cancelamentoPlano: false,
+        },
+      },
+      notesHtml: '',
     });
+    setLinkedPlanSearchResults({});
     setDocType('CPF');
   };
 
@@ -536,19 +646,49 @@ export const GidModule: React.FC = () => {
 
               <button
                 onClick={() => {
+                  setVinculosTargetAssociate(filteredCards[0] || cards[0] || null);
+                  setShowVinculosModal(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                title="Emitir Relatório de Vínculos Existentes e Círculos Familiares da Praça de Esportes"
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Relatório de Vínculos</span>
+              </button>
+
+              <button
+                onClick={() => {
                   setNewMemberData({
                     name: '',
                     birthDate: '',
                     phone: '',
                     rgOrCpf: '',
                     address: '',
+                    addressNumber: '',
+                    addressComplement: '',
+                    neighborhood: '',
+                    cep: '',
                     category: gidSubTab as CategoryType,
                     isTitular: true,
                     specialCondition: '',
+                    linkedPlanNumbers: ['', '', '', '', ''],
+                    procuracao: {
+                      hasProcuracao: false,
+                      dataProcuracao: '',
+                      nomeOutorgado: '',
+                      cpfOutorgado: '',
+                      autorizacoes: {
+                        retiradaCarteirinha: false,
+                        retiradaBoletos: false,
+                        cancelamentoPlano: false,
+                      },
+                    },
+                    notesHtml: '',
                   });
+                  setLinkedPlanSearchResults({});
                   setShowNewMemberModal(true);
                 }}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Novo Cadastro</span>
@@ -1165,10 +1305,10 @@ export const GidModule: React.FC = () => {
 
       {/* ================= MODAL NOVO CADASTRO ================= */}
       {showNewMemberModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden">
-            <form onSubmit={handleCreateMemberSubmit}>
-              <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden max-h-[92vh] flex flex-col">
+            <form onSubmit={handleCreateMemberSubmit} className="flex flex-col overflow-hidden max-h-[92vh]">
+              <div className="p-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
                 <div>
                   <h3 className="text-sm font-bold">Novo Cadastro</h3>
                   <span className="text-[11px] text-slate-300">
@@ -1184,7 +1324,7 @@ export const GidModule: React.FC = () => {
                 </button>
               </div>
 
-              <div className="p-5 space-y-3 text-xs">
+              <div className="p-4 sm:p-5 space-y-3.5 text-xs overflow-y-auto flex-1">
                 {/* Seleção de Categoria */}
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Categoria:</label>
@@ -1347,9 +1487,393 @@ export const GidModule: React.FC = () => {
                     onChange={(e) =>
                       setNewMemberData({ ...newMemberData, address: e.target.value })
                     }
-                    placeholder="Rua, número, bairro em Pouso Alegre"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Rua, avenida ou logradouro"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
                   />
+                </div>
+
+                {/* Campos adicionais de endereço solicitados: Nº, Complemento, Bairro, CEP */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Nº:</label>
+                    <input
+                      type="text"
+                      value={newMemberData.addressNumber}
+                      onChange={(e) =>
+                        setNewMemberData({ ...newMemberData, addressNumber: e.target.value })
+                      }
+                      placeholder="Ex: 340 ou S/N"
+                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Complemento:</label>
+                    <input
+                      type="text"
+                      value={newMemberData.addressComplement}
+                      onChange={(e) =>
+                        setNewMemberData({ ...newMemberData, addressComplement: e.target.value })
+                      }
+                      placeholder="Ex: Apto 102"
+                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Bairro:</label>
+                    <input
+                      type="text"
+                      value={newMemberData.neighborhood}
+                      onChange={(e) =>
+                        setNewMemberData({ ...newMemberData, neighborhood: e.target.value })
+                      }
+                      placeholder="Ex: Centro"
+                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">CEP:</label>
+                    <input
+                      type="text"
+                      value={newMemberData.cep}
+                      onChange={(e) =>
+                        setNewMemberData({ ...newMemberData, cep: e.target.value })
+                      }
+                      onBlur={() =>
+                        setNewMemberData((prev) => ({ ...prev, cep: formatCepNumber(prev.cep) }))
+                      }
+                      placeholder="37550-000"
+                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* ================= CAMPO: PROCURAÇÃO (COM BORDA DELIMITADORA E SUBCAMPOS) ================= */}
+                <div className="border border-slate-300 rounded-xl p-3.5 bg-slate-50 space-y-3">
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-200">
+                    <label className="font-bold text-slate-800 text-xs flex items-center gap-1.5 uppercase tracking-wide">
+                      <FileText className="w-4 h-4 text-amber-600" />
+                      <span>PROCURAÇÃO</span>
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-semibold bg-white border border-slate-200 px-2 py-0.5 rounded-full">
+                      Representação / Outorgado
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {/* Subcampo: Data da Procuração com ícone de calendário */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Data da Procuração:
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={newMemberData.procuracao.dataProcuracao || ''}
+                          onChange={(e) =>
+                            setNewMemberData({
+                              ...newMemberData,
+                              procuracao: {
+                                ...newMemberData.procuracao,
+                                dataProcuracao: e.target.value,
+                              },
+                            })
+                          }
+                          onBlur={() => {
+                            if (newMemberData.procuracao.dataProcuracao) {
+                              const formatted = formatBirthDate(newMemberData.procuracao.dataProcuracao);
+                              setNewMemberData((prev) => ({
+                                ...prev,
+                                procuracao: { ...prev.procuracao, dataProcuracao: formatted },
+                              }));
+                            }
+                          }}
+                          placeholder="DD/MM/AAAA"
+                          className="w-full px-2.5 py-1.5 pr-8 border border-slate-300 rounded-lg text-xs font-mono text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        {/* Input date nativo oculto acionado pelo ícone */}
+                        <input
+                          type="date"
+                          ref={procuracaoDateInputRef}
+                          className="sr-only"
+                          tabIndex={-1}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val) {
+                              const [yyyy, mm, dd] = val.split('-');
+                              const formatted = `${dd}/${mm}/${yyyy}`;
+                              setNewMemberData((prev) => ({
+                                ...prev,
+                                procuracao: {
+                                  ...prev.procuracao,
+                                  dataProcuracao: formatted,
+                                },
+                              }));
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (procuracaoDateInputRef.current) {
+                              if ('showPicker' in procuracaoDateInputRef.current) {
+                                (procuracaoDateInputRef.current as any).showPicker();
+                              } else {
+                                (procuracaoDateInputRef.current as any).focus();
+                              }
+                            }
+                          }}
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                          title="Abrir calendário para escolher a data da procuração"
+                        >
+                          <Calendar className="w-4 h-4 text-blue-600" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Subcampo: Nome (nome do outorgado) */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Nome: <span className="text-[10px] font-normal text-slate-500">(Outorgado)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={newMemberData.procuracao.nomeOutorgado || ''}
+                        onChange={(e) =>
+                          setNewMemberData({
+                            ...newMemberData,
+                            procuracao: {
+                              ...newMemberData.procuracao,
+                              nomeOutorgado: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="Nome do outorgado"
+                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    {/* Subcampo: CPF (CPF do outorgado) */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        CPF: <span className="text-[10px] font-normal text-slate-500">(Outorgado)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={newMemberData.procuracao.cpfOutorgado || ''}
+                        onChange={(e) =>
+                          setNewMemberData({
+                            ...newMemberData,
+                            procuracao: {
+                              ...newMemberData.procuracao,
+                              cpfOutorgado: e.target.value,
+                            },
+                          })
+                        }
+                        onBlur={() => {
+                          if (newMemberData.procuracao.cpfOutorgado) {
+                            const formatted = formatCpfNumber(newMemberData.procuracao.cpfOutorgado);
+                            setNewMemberData((prev) => ({
+                              ...prev,
+                              procuracao: { ...prev.procuracao, cpfOutorgado: formatted },
+                            }));
+                          }
+                        }}
+                        placeholder="000.000.000-00"
+                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-mono text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Subcampo com borda delimitadora: AUTORIZAÇÕES */}
+                  <div className="border border-slate-300 rounded-lg p-2.5 bg-white space-y-1.5">
+                    <label className="block text-[11px] font-bold text-slate-800 uppercase tracking-wide">
+                      AUTORIZAÇÕES:
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5">
+                      <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-700 hover:text-slate-900">
+                        <input
+                          type="checkbox"
+                          checked={newMemberData.procuracao.autorizacoes?.retiradaCarteirinha || false}
+                          onChange={(e) =>
+                            setNewMemberData({
+                              ...newMemberData,
+                              procuracao: {
+                                ...newMemberData.procuracao,
+                                autorizacoes: {
+                                  ...newMemberData.procuracao.autorizacoes,
+                                  retiradaCarteirinha: e.target.checked,
+                                },
+                              },
+                            })
+                          }
+                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span className="font-medium">Retirada de Carteirinha</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-700 hover:text-slate-900">
+                        <input
+                          type="checkbox"
+                          checked={newMemberData.procuracao.autorizacoes?.retiradaBoletos || false}
+                          onChange={(e) =>
+                            setNewMemberData({
+                              ...newMemberData,
+                              procuracao: {
+                                ...newMemberData.procuracao,
+                                autorizacoes: {
+                                  ...newMemberData.procuracao.autorizacoes,
+                                  retiradaBoletos: e.target.checked,
+                                },
+                              },
+                            })
+                          }
+                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span className="font-medium">Retirada de Boletos</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-700 hover:text-slate-900">
+                        <input
+                          type="checkbox"
+                          checked={newMemberData.procuracao.autorizacoes?.cancelamentoPlano || false}
+                          onChange={(e) =>
+                            setNewMemberData({
+                              ...newMemberData,
+                              procuracao: {
+                                ...newMemberData.procuracao,
+                                autorizacoes: {
+                                  ...newMemberData.procuracao.autorizacoes,
+                                  cancelamentoPlano: e.target.checked,
+                                },
+                              },
+                            })
+                          }
+                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span className="font-medium">Cancelamento do Plano</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ================= CAMPO DE NOME: VINCULAÇÃO IDENTIFICATIVA (5 ESPAÇOS COM BUSCA) ================= */}
+                <div className="bg-slate-50 border border-slate-300 rounded-xl p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                      <Link2 className="w-4 h-4 text-blue-600" />
+                      <span>Vinculação Identificativa (Opcional - Até 5 Planos)</span>
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-semibold bg-slate-200/80 px-2 py-0.5 rounded-full">
+                      Parentesco / Familiaridade
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Informe o número de um plano já existente no sistema (ex: 5689, 4219) para vincular associados parentes ou familiares. Ao clicar em <strong>Buscar</strong>, a plataforma busca no banco de dados e permite direcionar diretamente ao Módulo GID desse plano.
+                  </p>
+
+                  <div className="space-y-2 pt-1">
+                    {[0, 1, 2, 3, 4].map((idx) => {
+                      const feedback = linkedPlanSearchResults[idx];
+                      return (
+                        <div key={idx} className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-bold text-slate-600 w-16 shrink-0 font-mono">
+                              Vínculo #{idx + 1}:
+                            </span>
+                            <input
+                              type="text"
+                              value={newMemberData.linkedPlanNumbers[idx] || ''}
+                              onChange={(e) => {
+                                const updated = [...newMemberData.linkedPlanNumbers];
+                                updated[idx] = e.target.value;
+                                setNewMemberData({ ...newMemberData, linkedPlanNumbers: updated });
+                                if (linkedPlanSearchResults[idx]) {
+                                  setLinkedPlanSearchResults((prev) => ({ ...prev, [idx]: null }));
+                                }
+                              }}
+                              placeholder={`Nº do plano já existente (ex: ${idx === 0 ? '5689' : idx === 1 ? '4219' : idx === 2 ? '5601' : '3120'})`}
+                              className="flex-1 px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-mono text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSearchLinkedPlan(idx, newMemberData.linkedPlanNumbers[idx] || '')}
+                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 transition-colors shadow-2xs cursor-pointer"
+                              title="Buscar este plano no banco de dados"
+                            >
+                              <Search className="w-3.5 h-3.5" />
+                              <span>Buscar</span>
+                            </button>
+                          </div>
+
+                          {/* Mensagem e atalho para Módulo GID do plano localizado */}
+                          {feedback && (
+                            <div
+                              className={`text-[11px] px-2.5 py-1.5 rounded-lg flex flex-wrap items-center justify-between gap-2 ml-0 sm:ml-18 ${
+                                feedback.success
+                                  ? 'bg-emerald-50 text-emerald-950 border border-emerald-300'
+                                  : 'bg-amber-50 text-amber-950 border border-amber-300'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                {feedback.success ? (
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                ) : (
+                                  <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                )}
+                                <span className="font-medium">{feedback.text}</span>
+                              </div>
+
+                              {feedback.foundCard && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleOpenFicha(feedback.foundCard!, 'VIEW');
+                                    setShowNewMemberModal(false);
+                                  }}
+                                  className="text-[10.5px] font-bold text-blue-700 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-2 py-0.5 rounded flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
+                                  title="Abrir este plano no GID"
+                                >
+                                  <span>Ir até o Módulo GID deste plano</span>
+                                  <ArrowRight className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ================= CAMPO: OBSERVAÇÕES (TEXTO LIVRE COM FORMATAÇÃO E SCROLL) ================= */}
+                <div className="border border-slate-300 rounded-xl p-3.5 bg-slate-50 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-slate-600" />
+                      <span>Observações (Texto Livre com Formatação)</span>
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-mono bg-white border border-slate-200 px-2 py-0.5 rounded">
+                      Scroll Ativo
+                    </span>
+                  </div>
+
+                  <p className="text-[10.5px] text-slate-500 leading-tight">
+                    Utilize as ferramentas de formatação (Negrito, Itálico, Sublinhado, Riscado, Tamanho, Fonte, Cor e Fundo). Caso o texto ultrapasse a altura limite, a barra de rolagem (scroll) entra em ação à direita.
+                  </p>
+
+                  <div className="border border-slate-300 rounded-lg overflow-hidden bg-white shadow-2xs">
+                    <RichTextEditor
+                      value={newMemberData.notesHtml}
+                      onChange={(html) => setNewMemberData({ ...newMemberData, notesHtml: html })}
+                      placeholder="Digite aqui anotações ou observações gerais..."
+                      minHeight="95px"
+                      maxHeight="130px"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -1633,6 +2157,13 @@ export const GidModule: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ================= MODAL RELATÓRIO DE VÍNCULOS EXISTENTES ================= */}
+      <VinculosReportModal
+        isOpen={showVinculosModal}
+        onClose={() => setShowVinculosModal(false)}
+        initialAssociate={vinculosTargetAssociate}
+      />
     </div>
   );
 };

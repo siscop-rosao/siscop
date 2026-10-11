@@ -88,3 +88,16 @@ export const formatCpfNumber = (val: string): string => {
 
   return val.trim();
 };
+
+/**
+ * Formata sequência numérica em CEP no formato 00000-000.
+ * Exemplo: '37550000' -> '37550-000'
+ */
+export const formatCepNumber = (val: string): string => {
+  if (!val) return '';
+  const digits = val.replace(/\D/g, '').slice(0, 8);
+  if (digits.length === 8) {
+    return `${digits.slice(0, 5)}-${digits.slice(5, 8)}`;
+  }
+  return val.trim();
+};

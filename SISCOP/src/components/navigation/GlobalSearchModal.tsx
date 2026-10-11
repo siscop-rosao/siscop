@@ -76,204 +76,247 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
     }
   }, [isOpen]);
 
-  // Real-time indexing engine across all platform contents
+  // Real-time indexing engine across all platform contents (100% à prova de falhas com proteção contra campos nulos)
   const results = useMemo<SearchResultItem[]>(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
+    try {
+      const q = query.trim().toLowerCase();
+      if (!q) return [];
 
-    const items: SearchResultItem[] = [];
+      const items: SearchResultItem[] = [];
 
-    // 1. Index Cards (Associados / GID / GDA)
-    cards.forEach((card) => {
-      const matchFields: { field: string; val: string }[] = [
-        { field: 'Nome', val: card.name || '' },
-        { field: 'Nº Controle', val: card.controlNumber || '' },
-        { field: 'CPF/RG', val: card.rgOrCpf || '' },
-        { field: 'Telefone', val: card.phone || '' },
-        { field: 'Endereço', val: card.address || '' },
-        { field: 'Família', val: card.familyName || '' },
-        { field: 'Condição Especial', val: card.specialCondition || '' },
-        { field: 'Laudo', val: card.medicalReportInfo || '' },
-        { field: 'Observações', val: card.notesHtml?.replace(/<[^>]*>?/gm, '') || '' },
-        { field: 'Informações Internas', val: card.internalInfoHtml?.replace(/<[^>]*>?/gm, '') || '' },
-      ];
+      // 1. Index Cards (Associados / GID / GDA)
+      if (Array.isArray(cards)) {
+        cards.forEach((card, idx) => {
+          if (!card) return;
+          const matchFields: { field: string; val: string }[] = [
+            { field: 'Nome', val: String(card.name || '') },
+            { field: 'Nº Controle', val: String(card.controlNumber || '') },
+            { field: 'CPF/RG', val: String(card.rgOrCpf || '') },
+            { field: 'Telefone', val: String(card.phone || '') },
+            { field: 'Endereço', val: String(card.address || '') },
+            { field: 'Número', val: String(card.addressNumber || '') },
+            { field: 'Complemento', val: String(card.addressComplement || '') },
+            { field: 'Bairro', val: String(card.neighborhood || '') },
+            { field: 'CEP', val: String(card.cep || '') },
+            { field: 'Planos Vinculados', val: Array.isArray(card.linkedPlanNumbers) ? card.linkedPlanNumbers.join(', ') : '' },
+            { field: 'Família', val: String(card.familyName || '') },
+            { field: 'Condição Especial', val: String(card.specialCondition || '') },
+            { field: 'Laudo', val: String(card.medicalReportInfo || '') },
+            { field: 'Procuração (Outorgado)', val: String(card.procuracao?.nomeOutorgado || '') },
+            { field: 'CPF Outorgado', val: String(card.procuracao?.cpfOutorgado || '') },
+            { field: 'Observações', val: typeof card.notesHtml === 'string' ? card.notesHtml.replace(/<[^>]*>?/gm, '') : '' },
+            { field: 'Informações Internas', val: typeof card.internalInfoHtml === 'string' ? card.internalInfoHtml.replace(/<[^>]*>?/gm, '') : '' },
+          ];
 
-      // Check payment records in grid
-      card.grid1?.forEach((p) => {
-        if (p.datePaid) matchFields.push({ field: `Pgto ${p.month}`, val: p.datePaid });
-        if (p.paymentMethod) matchFields.push({ field: `Modalidade ${p.month}`, val: p.paymentMethod });
-        if (p.payingBank) matchFields.push({ field: `Banco ${p.month}`, val: p.payingBank });
-        if (p.referenceId) matchFields.push({ field: `Identificador ${p.month}`, val: p.referenceId });
-      });
-      card.grid2?.forEach((p) => {
-        if (p.datePaid) matchFields.push({ field: `Pgto ${p.month}`, val: p.datePaid });
-        if (p.paymentMethod) matchFields.push({ field: `Modalidade ${p.month}`, val: p.paymentMethod });
-        if (p.payingBank) matchFields.push({ field: `Banco ${p.month}`, val: p.payingBank });
-        if (p.referenceId) matchFields.push({ field: `Identificador ${p.month}`, val: p.referenceId });
-      });
+          // Check payment records in grid
+          if (Array.isArray(card.grid1)) {
+            card.grid1.forEach((p) => {
+              if (!p) return;
+              if (p.datePaid) matchFields.push({ field: `Pgto ${p.month || ''}`, val: String(p.datePaid) });
+              if (p.paymentMethod) matchFields.push({ field: `Modalidade ${p.month || ''}`, val: String(p.paymentMethod) });
+              if (p.payingBank) matchFields.push({ field: `Banco ${p.month || ''}`, val: String(p.payingBank) });
+              if (p.referenceId) matchFields.push({ field: `Identificador ${p.month || ''}`, val: String(p.referenceId) });
+            });
+          }
+          if (Array.isArray(card.grid2)) {
+            card.grid2.forEach((p) => {
+              if (!p) return;
+              if (p.datePaid) matchFields.push({ field: `Pgto ${p.month || ''}`, val: String(p.datePaid) });
+              if (p.paymentMethod) matchFields.push({ field: `Modalidade ${p.month || ''}`, val: String(p.paymentMethod) });
+              if (p.payingBank) matchFields.push({ field: `Banco ${p.month || ''}`, val: String(p.payingBank) });
+              if (p.referenceId) matchFields.push({ field: `Identificador ${p.month || ''}`, val: String(p.referenceId) });
+            });
+          }
 
-      const matchedField = matchFields.find((f) => f.val.toLowerCase().includes(q));
+          const matchedField = matchFields.find((f) => f.val.toLowerCase().includes(q));
 
-      if (matchedField) {
-        let score = 1;
-        if (card.name.toLowerCase().includes(q)) score += 10;
-        if (card.controlNumber.toLowerCase().includes(q)) score += 12;
-        if (card.rgOrCpf?.toLowerCase().includes(q)) score += 8;
+          if (matchedField) {
+            let score = 1;
+            const cardName = String(card.name || '').toLowerCase();
+            const cardControl = String(card.controlNumber || '').toLowerCase();
+            const cardCpf = String(card.rgOrCpf || '').toLowerCase();
+            if (cardName.includes(q)) score += 10;
+            if (cardControl.includes(q)) score += 12;
+            if (cardCpf.includes(q)) score += 8;
 
-        const categoryName =
-          card.category === 'PLANO_FAMILIAR'
-            ? 'Plano Familiar'
-            : card.category === 'PLANO_ESPECIAL'
-            ? 'Plano Especial (Isento)'
-            : card.category === 'PREFEITURA'
-            ? 'Servidor da Prefeitura'
-            : card.category === 'BOMBEIROS'
-            ? 'Corpo de Bombeiros'
-            : 'Plano Individual';
+            const categoryName =
+              card.category === 'PLANO_FAMILIAR'
+                ? 'Plano Familiar'
+                : card.category === 'PLANO_ESPECIAL'
+                ? 'Plano Especial (Isento)'
+                : card.category === 'PREFEITURA'
+                ? 'Servidor da Prefeitura'
+                : card.category === 'BOMBEIROS'
+                ? 'Corpo de Bombeiros'
+                : 'Plano Individual';
 
-        items.push({
-          id: `card-${card.id}`,
-          type: 'CARD',
-          typeLabel: 'Associado / Carteirinha',
-          badgeColor: 'bg-blue-100 text-blue-800 border-blue-200',
-          icon: <Users className="w-4 h-4 text-blue-600" />,
-          title: card.name,
-          subtitle: `${card.controlNumber} • ${categoryName} • Status: ${card.status}`,
-          path: ['Módulo GID', categoryName, card.isTitular ? 'Titular' : 'Dependente'],
-          snippet: matchedField.field !== 'Nome' ? `${matchedField.field}: "${matchedField.val}"` : undefined,
-          matchScore: score,
-          action: () => {
-            setCurrentView('GID');
-            setGidActiveTab('USUARIOS');
-            setGidSubTab(card.category);
-            openFichaModal(card, 'VIEW');
-            onClose();
-          },
-        });
-      }
-    });
-
-    // 2. Index Barbecue Reservations (Churrasqueira)
-    reservations.forEach((res) => {
-      const matchFields: { field: string; val: string }[] = [
-        { field: 'Responsável', val: res.responsibleName || '' },
-        { field: 'Telefone', val: res.responsiblePhone || '' },
-        { field: 'Plano', val: res.responsiblePlanNumber || '' },
-        { field: 'Observações', val: res.observations || '' },
-        { field: 'Quiosque', val: `Quiosque ${res.kioskNumber}` },
-        { field: 'Data', val: res.date || '' },
-        { field: 'Convidados', val: res.participantsList?.join(', ') || '' },
-      ];
-
-      const matchedField = matchFields.find((f) => f.val.toLowerCase().includes(q));
-
-      if (matchedField) {
-        let score = 2;
-        if (res.responsibleName.toLowerCase().includes(q)) score += 8;
-        if (res.date.includes(q)) score += 5;
-
-        items.push({
-          id: `res-${res.id}`,
-          type: 'RESERVATION',
-          typeLabel: 'Churrasqueira / Quiosque',
-          badgeColor: 'bg-amber-100 text-amber-800 border-amber-200',
-          icon: <Flame className="w-4 h-4 text-amber-600" />,
-          title: `Quiosque ${res.kioskNumber} - ${res.responsibleName}`,
-          subtitle: `Data: ${res.date} • Horário: ${res.timeSlot} • Status: ${res.status}`,
-          path: ['Módulo GID', 'Churrasqueira (Quiosques)', `Quiosque ${res.kioskNumber}`],
-          snippet: `${matchedField.field}: "${matchedField.val}"`,
-          matchScore: score,
-          action: () => {
-            setCurrentView('GID');
-            setGidActiveTab('CHURRASQUEIRA');
-            onClose();
-          },
-        });
-      }
-    });
-
-    // 3. Index POP Procedures & Pricing Tables
-    popProcedures.forEach((pop) => {
-      const matchFields: { field: string; val: string }[] = [
-        { field: 'Código POP', val: pop.code || '' },
-        { field: 'Título', val: pop.title || '' },
-        { field: 'Objetivo', val: pop.objective || '' },
-        { field: 'Base Legal', val: pop.legalBasis || '' },
-        { field: 'Notas Importantes', val: pop.importantNotes || '' },
-        { field: 'Passos Operacionais', val: pop.steps?.join(' ') || '' },
-        { field: 'Pré-requisitos', val: pop.prerequisites?.join(' ') || '' },
-      ];
-
-      // Index values inside pricing tables if present
-      if (pop.pricingTables) {
-        pop.pricingTables.eventsTable?.forEach((row) => {
-          matchFields.push({ field: `Tabela ${row.event}`, val: `${row.event} Familiar R$ ${row.familiar} Individual R$ ${row.individual}` });
-        });
-        pop.pricingTables.familyQuantityTable?.forEach((row) => {
-          matchFields.push({ field: `Tabela Família ${row.familyCount}`, val: `R$ ${row.firstPaymentValue}` });
-        });
-        pop.pricingTables.infoNotes?.forEach((note) => {
-          matchFields.push({ field: `Informativo ${note.label}`, val: `R$ ${note.value}` });
+            items.push({
+              id: `card-${card.id || idx}`,
+              type: 'CARD',
+              typeLabel: 'Associado / Carteirinha',
+              badgeColor: 'bg-blue-100 text-blue-800 border-blue-200',
+              icon: <Users className="w-4 h-4 text-blue-600" />,
+              title: card.name || 'Sem Nome Cadastrado',
+              subtitle: `${card.controlNumber || 'S/N'} • ${categoryName} • Status: ${card.status || 'ATIVO'}`,
+              path: ['Módulo GID', categoryName, card.isTitular ? 'Titular' : 'Dependente'],
+              snippet: matchedField.field !== 'Nome' ? `${matchedField.field}: "${matchedField.val}"` : undefined,
+              matchScore: score,
+              action: () => {
+                setCurrentView('GID');
+                setGidActiveTab('USUARIOS');
+                setGidSubTab(card.category || 'PLANO_INDIVIDUAL');
+                openFichaModal(card, 'VIEW');
+                onClose();
+              },
+            });
+          }
         });
       }
 
-      const matchedField = matchFields.find((f) => f.val.toLowerCase().includes(q));
+      // 2. Index Barbecue Reservations (Churrasqueira)
+      if (Array.isArray(reservations)) {
+        reservations.forEach((res, idx) => {
+          if (!res) return;
+          const matchFields: { field: string; val: string }[] = [
+            { field: 'Responsável', val: String(res.responsibleName || '') },
+            { field: 'Telefone', val: String(res.responsiblePhone || '') },
+            { field: 'Plano', val: String(res.responsiblePlanNumber || '') },
+            { field: 'Observações', val: String(res.observations || '') },
+            { field: 'Quiosque', val: `Quiosque ${res.kioskNumber || ''}` },
+            { field: 'Data', val: String(res.date || '') },
+            { field: 'Convidados', val: Array.isArray(res.participantsList) ? res.participantsList.join(', ') : '' },
+          ];
 
-      if (matchedField) {
-        let score = 3;
-        if (pop.title.toLowerCase().includes(q)) score += 9;
-        if (pop.code.toLowerCase().includes(q)) score += 11;
+          const matchedField = matchFields.find((f) => f.val.toLowerCase().includes(q));
 
-        items.push({
-          id: `pop-${pop.id}`,
-          type: 'POP',
-          typeLabel: 'Norma / POP',
-          badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-          icon: <FileText className="w-4 h-4 text-emerald-600" />,
-          title: `${pop.code} - ${pop.title}`,
-          subtitle: `${pop.category} • ${pop.objective.slice(0, 90)}...`,
-          path: ['Módulo POP', 'Procedimentos Operacionais', pop.code],
-          snippet: `${matchedField.field}: "${matchedField.val.slice(0, 110)}"`,
-          matchScore: score,
-          action: () => {
-            setCurrentView('POP');
-            onClose();
-          },
+          if (matchedField) {
+            let score = 2;
+            const respName = String(res.responsibleName || '').toLowerCase();
+            const resDate = String(res.date || '');
+            if (respName.includes(q)) score += 8;
+            if (resDate.includes(q)) score += 5;
+
+            items.push({
+              id: `res-${res.id || idx}`,
+              type: 'RESERVATION',
+              typeLabel: 'Churrasqueira / Quiosque',
+              badgeColor: 'bg-amber-100 text-amber-800 border-amber-200',
+              icon: <Flame className="w-4 h-4 text-amber-600" />,
+              title: `Quiosque ${res.kioskNumber || 'N/D'} - ${res.responsibleName || 'Responsável'}`,
+              subtitle: `Data: ${res.date || ''} • Horário: ${res.timeSlot || ''} • Status: ${res.status || ''}`,
+              path: ['Módulo GID', 'Churrasqueira (Quiosques)', `Quiosque ${res.kioskNumber || ''}`],
+              snippet: `${matchedField.field}: "${matchedField.val}"`,
+              matchScore: score,
+              action: () => {
+                setCurrentView('GID');
+                setGidActiveTab('CHURRASQUEIRA');
+                onClose();
+              },
+            });
+          }
         });
       }
-    });
 
-    // 4. Index Users / Security
-    users.forEach((u) => {
-      const matchFields = [
-        { field: 'Nome de Usuário', val: u.name },
-        { field: 'Login / Usuário', val: u.username },
-        { field: 'Cargo / Função', val: u.role },
-      ];
+      // 3. Index POP Procedures & Pricing Tables
+      if (Array.isArray(popProcedures)) {
+        popProcedures.forEach((pop, idx) => {
+          if (!pop) return;
+          const matchFields: { field: string; val: string }[] = [
+            { field: 'Código POP', val: String(pop.code || '') },
+            { field: 'Título', val: String(pop.title || '') },
+            { field: 'Objetivo', val: String(pop.objective || '') },
+            { field: 'Base Legal', val: String(pop.legalBasis || '') },
+            { field: 'Notas Importantes', val: String(pop.importantNotes || '') },
+            { field: 'Passos Operacionais', val: Array.isArray(pop.steps) ? pop.steps.join(' ') : '' },
+            { field: 'Pré-requisitos', val: Array.isArray(pop.prerequisites) ? pop.prerequisites.join(' ') : '' },
+          ];
 
-      const matchedField = matchFields.find((f) => f.val.toLowerCase().includes(q));
-      if (matchedField) {
-        items.push({
-          id: `user-${u.id}`,
-          type: 'USER',
-          typeLabel: 'Sistema / Usuário',
-          badgeColor: 'bg-purple-100 text-purple-800 border-purple-200',
-          icon: <Shield className="w-4 h-4 text-purple-600" />,
-          title: u.name,
-          subtitle: `Login: @${u.username} • Cargo: ${u.role}`,
-          path: ['Sistema', 'Usuários e Permissões', u.name],
-          snippet: `${matchedField.field}: "${matchedField.val}"`,
-          matchScore: 4,
-          action: () => {
-            setCurrentView('USERS_ADMIN');
-            onClose();
-          },
+          // Index values inside pricing tables if present
+          if (pop.pricingTables) {
+            if (Array.isArray(pop.pricingTables.eventsTable)) {
+              pop.pricingTables.eventsTable.forEach((row) => {
+                if (row) matchFields.push({ field: `Tabela ${row.event || ''}`, val: `${row.event || ''} Familiar R$ ${row.familiar || ''} Individual R$ ${row.individual || ''}` });
+              });
+            }
+            if (Array.isArray(pop.pricingTables.familyQuantityTable)) {
+              pop.pricingTables.familyQuantityTable.forEach((row) => {
+                if (row) matchFields.push({ field: `Tabela Família ${row.familyCount || ''}`, val: `R$ ${row.firstPaymentValue || ''}` });
+              });
+            }
+            if (Array.isArray(pop.pricingTables.infoNotes)) {
+              pop.pricingTables.infoNotes.forEach((note) => {
+                if (note) matchFields.push({ field: `Informativo ${note.label || ''}`, val: `R$ ${note.value || ''}` });
+              });
+            }
+          }
+
+          const matchedField = matchFields.find((f) => f.val.toLowerCase().includes(q));
+
+          if (matchedField) {
+            let score = 3;
+            const popTitle = String(pop.title || '').toLowerCase();
+            const popCode = String(pop.code || '').toLowerCase();
+            if (popTitle.includes(q)) score += 9;
+            if (popCode.includes(q)) score += 11;
+
+            items.push({
+              id: `pop-${pop.id || idx}`,
+              type: 'POP',
+              typeLabel: 'Norma / POP',
+              badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+              icon: <FileText className="w-4 h-4 text-emerald-600" />,
+              title: `${pop.code || 'POP'} - ${pop.title || 'Norma'}`,
+              subtitle: `${pop.category || 'POP'} • ${String(pop.objective || '').slice(0, 90)}...`,
+              path: ['Módulo POP', 'Procedimentos Operacionais', pop.code || ''],
+              snippet: `${matchedField.field}: "${String(matchedField.val || '').slice(0, 110)}"`,
+              matchScore: score,
+              action: () => {
+                setCurrentView('POP');
+                onClose();
+              },
+            });
+          }
         });
       }
-    });
 
-    // Sort by match score descending
-    return items.sort((a, b) => b.matchScore - a.matchScore);
+      // 4. Index Users / Security
+      if (Array.isArray(users)) {
+        users.forEach((u, idx) => {
+          if (!u) return;
+          const matchFields = [
+            { field: 'Nome de Usuário', val: String(u.name || '') },
+            { field: 'Login / Usuário', val: String(u.username || '') },
+            { field: 'Cargo / Função', val: String(u.role || '') },
+          ];
+
+          const matchedField = matchFields.find((f) => f.val.toLowerCase().includes(q));
+          if (matchedField) {
+            items.push({
+              id: `user-${u.id || idx}`,
+              type: 'USER',
+              typeLabel: 'Sistema / Usuário',
+              badgeColor: 'bg-purple-100 text-purple-800 border-purple-200',
+              icon: <Shield className="w-4 h-4 text-purple-600" />,
+              title: u.name || 'Usuário',
+              subtitle: `Login: @${u.username || ''} • Cargo: ${u.role || ''}`,
+              path: ['Sistema', 'Usuários e Permissões', u.name || 'Usuário'],
+              snippet: `${matchedField.field}: "${matchedField.val}"`,
+              matchScore: 4,
+              action: () => {
+                setCurrentView('USERS_ADMIN');
+                onClose();
+              },
+            });
+          }
+        });
+      }
+
+      // Sort by match score descending
+      return items.sort((a, b) => b.matchScore - a.matchScore);
+    } catch (err) {
+      console.error('[SISCOP] Erro seguro ao indexar busca:', err);
+      return [];
+    }
   }, [query, cards, reservations, popProcedures, users, setCurrentView, setGidActiveTab, setGidSubTab, onOpenCard, onClose]);
 
   // Filtered by selected category pill
@@ -414,7 +457,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
               const isSelected = idx === selectedIndex;
               return (
                 <div
-                  key={item.id}
+                  key={`${item.id}-${idx}`}
                   onClick={item.action}
                   onMouseEnter={() => setSelectedIndex(idx)}
                   className={`p-3 sm:p-3.5 rounded-xl cursor-pointer transition-all border flex items-start justify-between gap-3 ${
@@ -431,10 +474,10 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
                     <div className="min-w-0 flex-1">
                       {/* Breadcrumbs Path */}
                       <div className="flex items-center gap-1 text-[10px] text-slate-400 font-medium mb-0.5 flex-wrap">
-                        {item.path.map((p, pIdx) => (
+                        {(item.path || []).filter(Boolean).map((p, pIdx) => (
                           <React.Fragment key={pIdx}>
-                            <span>{p}</span>
-                            {pIdx < item.path.length - 1 && (
+                            <span>{String(p)}</span>
+                            {pIdx < (item.path?.length || 0) - 1 && (
                               <ChevronRight className="w-3 h-3 text-slate-300" />
                             )}
                           </React.Fragment>
@@ -443,16 +486,16 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
 
                       {/* Title & Badge */}
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-slate-900 text-sm">{item.title}</span>
+                        <span className="font-bold text-slate-900 text-sm">{item.title || 'Sem título'}</span>
                         <span
-                          className={`text-[9.5px] font-semibold px-2 py-0.5 rounded-full border ${item.badgeColor}`}
+                          className={`text-[9.5px] font-semibold px-2 py-0.5 rounded-full border ${item.badgeColor || 'bg-slate-100 text-slate-700 border-slate-200'}`}
                         >
-                          {item.typeLabel}
+                          {item.typeLabel || 'Registro'}
                         </span>
                       </div>
 
                       {/* Subtitle */}
-                      <div className="text-xs text-slate-500 mt-0.5">{item.subtitle}</div>
+                      <div className="text-xs text-slate-500 mt-0.5">{item.subtitle || ''}</div>
 
                       {/* Matched Snippet */}
                       {item.snippet && (

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CardData, MonthPayment, CategoryType, CalculationRecord } from '../../types';
+import { useApp } from '../../context/AppContext';
 import { RichTextEditor } from '../common/RichTextEditor';
 import { BrasaoPousoAlegre } from '../common/BrasaoPousoAlegre';
 import { AcertoCalculatorModal } from '../calculator/AcertoCalculatorModal';
-import { formatBirthDate, formatPhoneNumber, formatCpfNumber } from '../../utils/formatters';
+import { VinculosReportModal } from './VinculosReportModal';
+import { formatBirthDate, formatPhoneNumber, formatCpfNumber, formatCepNumber } from '../../utils/formatters';
 import { executePrint } from '../../utils/printHelper';
 import { optimizeImageBase64 } from '../../services/imageOptimizer';
 import {
@@ -23,6 +25,8 @@ import {
   Phone,
   MapPin,
   Shield,
+  Users,
+  Link2,
   Layers,
   Search,
   Upload,
@@ -83,11 +87,68 @@ export const FichaCadastralModal: React.FC<FichaCadastralModalProps> = ({
   onSave,
   currentUser,
 }) => {
+  const { cards, setCurrentView, setGidActiveTab, setGidSubTab, openFichaModal } = useApp();
+
   const [mode, setMode] = useState<'VIEW' | 'EDIT'>(initialMode);
   const [activeTab, setActiveTab] = useState<'DADOS' | 'PAGAMENTOS'>(initialTab);
 
   // Form State for Associate
   const [formData, setFormData] = useState<CardData | null>(null);
+
+  // Relatório de Vínculos Existentes & Busca de Vinculação Identificativa
+  const [showVinculosReport, setShowVinculosReport] = useState(false);
+  const [linkedPlanFeedback, setLinkedPlanFeedback] = useState<
+    Record<number, { text: string; success: boolean; foundCard?: CardData } | null>
+  >({});
+  const procuracaoDateRef = useRef<HTMLInputElement>(null);
+
+  const handleSearchLinkedPlanInFicha = (index: number, planNum: string) => {
+    const clean = planNum.trim();
+    if (!clean) {
+      setLinkedPlanFeedback((prev) => ({
+        ...prev,
+        [index]: { text: 'Informe um número de plano antes de pesquisar.', success: false },
+      }));
+      return;
+    }
+
+    const norm = clean.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const found = cards.find((c) => {
+      const cNorm = c.controlNumber.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      return (
+        cNorm === norm ||
+        cNorm.includes(norm) ||
+        norm.includes(cNorm) ||
+        c.controlNumber.toLowerCase().includes(clean.toLowerCase())
+      );
+    });
+
+    if (found) {
+      setLinkedPlanFeedback((prev) => ({
+        ...prev,
+        [index]: {
+          text: `✓ Localizado: ${found.name} (${found.controlNumber} • ${found.category})`,
+          success: true,
+          foundCard: found,
+        },
+      }));
+    } else {
+      setLinkedPlanFeedback((prev) => ({
+        ...prev,
+        [index]: {
+          text: `Plano "${clean}" não encontrado no banco de dados.`,
+          success: false,
+        },
+      }));
+    }
+  };
+
+  const handleNavigateToPlan = (targetCard: CardData) => {
+    setCurrentView('GID');
+    setGidActiveTab('USUARIOS');
+    setGidSubTab(targetCard.category);
+    openFichaModal(targetCard, 'VIEW');
+  };
 
   // Custom bank logos state (bankCode -> logoUrl)
   const [customBankLogos, setCustomBankLogos] = useState<Record<string, string>>({});
@@ -169,8 +230,18 @@ export const FichaCadastralModal: React.FC<FichaCadastralModalProps> = ({
   // Sync state with incoming card prop
   useEffect(() => {
     if (card) {
+      const rawLinks = card.linkedPlanNumbers || [];
+      const safeLinks = [
+        rawLinks[0] || '',
+        rawLinks[1] || '',
+        rawLinks[2] || '',
+        rawLinks[3] || '',
+        rawLinks[4] || '',
+      ];
+
       setFormData({
         ...card,
+        linkedPlanNumbers: safeLinks,
         notesHtml: card.notesHtml || '',
         internalInfoHtml: card.internalInfoHtml || '',
         includeNotesInPrint: card.includeNotesInPrint !== undefined ? card.includeNotesInPrint : true,
@@ -178,6 +249,7 @@ export const FichaCadastralModal: React.FC<FichaCadastralModalProps> = ({
       });
       setMode(initialMode);
       setActiveTab(initialTab);
+      setLinkedPlanFeedback({});
     }
   }, [card, initialMode, initialTab]);
 
@@ -199,8 +271,10 @@ export const FichaCadastralModal: React.FC<FichaCadastralModalProps> = ({
 
   const handleSave = () => {
     if (!formData) return;
+    const cleanLinks = (formData.linkedPlanNumbers || []).map((p) => p.trim()).filter(Boolean);
     const updated: CardData = {
       ...formData,
+      linkedPlanNumbers: cleanLinks,
       updatedAt: new Date().toISOString(),
       lastEditedBy: currentUser?.name || 'Administrador',
     };
@@ -475,6 +549,16 @@ export const FichaCadastralModal: React.FC<FichaCadastralModalProps> = ({
                 <span>Visualizar</span>
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => setShowVinculosReport(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+              title="Emitir Relatório de Vínculos Existentes deste associado"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Relatório de Vínculos</span>
+            </button>
 
             <button
               type="button"
@@ -838,25 +922,568 @@ export const FichaCadastralModal: React.FC<FichaCadastralModalProps> = ({
                       )}
                     </div>
 
-                    {/* Endereço Completo */}
+                    {/* Endereço Residencial */}
                     <div className="sm:col-span-2">
-                      <label className="font-bold text-slate-700 block mb-1">Endereço Residencial:</label>
+                      <label className="font-bold text-slate-700 block mb-1">Endereço Residencial (Logradouro):</label>
                       {mode === 'EDIT' ? (
                         <input
                           type="text"
                           value={formData.address || ''}
                           onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                          placeholder="Rua, Número, Bairro, Cidade/UF"
+                          placeholder="Rua, Avenida, Praça..."
+                          className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-slate-800 focus:border-blue-500 outline-none"
+                        />
+                      ) : (
+                        <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-medium">
+                          {formData.address || 'Não cadastrado'}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Detalhamento de Endereço Solicitado: Nº, Complemento, Bairro, CEP */}
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">Nº:</label>
+                      {mode === 'EDIT' ? (
+                        <input
+                          type="text"
+                          value={formData.addressNumber || ''}
+                          onChange={(e) => setFormData({ ...formData, addressNumber: e.target.value })}
+                          placeholder="Ex: 340 ou S/N"
+                          className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-slate-800 font-mono focus:border-blue-500 outline-none"
+                        />
+                      ) : (
+                        <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-mono">
+                          {formData.addressNumber || 'S/N'}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">Complemento:</label>
+                      {mode === 'EDIT' ? (
+                        <input
+                          type="text"
+                          value={formData.addressComplement || ''}
+                          onChange={(e) => setFormData({ ...formData, addressComplement: e.target.value })}
+                          placeholder="Ex: Apto 102, Bloco B"
                           className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-slate-800 focus:border-blue-500 outline-none"
                         />
                       ) : (
                         <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800">
-                          {formData.address || 'Não cadastrado'}
+                          {formData.addressComplement || 'Nenhum'}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">Bairro:</label>
+                      {mode === 'EDIT' ? (
+                        <input
+                          type="text"
+                          value={formData.neighborhood || ''}
+                          onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })}
+                          placeholder="Ex: Centro"
+                          className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-slate-800 focus:border-blue-500 outline-none"
+                        />
+                      ) : (
+                        <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800">
+                          {formData.neighborhood || 'Não informado'}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">CEP:</label>
+                      {mode === 'EDIT' ? (
+                        <input
+                          type="text"
+                          value={formData.cep || ''}
+                          onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
+                          onBlur={() => setFormData((prev) => (prev ? { ...prev, cep: formatCepNumber(prev.cep || '') } : null))}
+                          placeholder="37550-000"
+                          className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-slate-800 font-mono focus:border-blue-500 outline-none"
+                        />
+                      ) : (
+                        <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-mono">
+                          {formData.cep || 'Não informado'}
                         </div>
                       )}
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* ================= BLOCO: PROCURAÇÃO (COM BORDA DELIMITADORA E SUBCAMPOS) ================= */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between pb-2 mb-1 border-b border-slate-200">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-amber-600" />
+                    <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
+                      PROCURAÇÃO
+                    </h3>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-semibold bg-slate-100 px-2 py-0.5 rounded-full">
+                    Representação Legal / Outorgado
+                  </span>
+                </div>
+
+                {mode === 'EDIT' ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {/* Subcampo: Data da Procuração com ícone de calendário */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Data da Procuração:
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={formData.procuracao?.dataProcuracao || ''}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                procuracao: {
+                                  ...(formData.procuracao || {}),
+                                  dataProcuracao: e.target.value,
+                                },
+                              })
+                            }
+                            onBlur={() => {
+                              if (formData.procuracao?.dataProcuracao) {
+                                const formatted = formatBirthDate(formData.procuracao.dataProcuracao);
+                                setFormData((prev) =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        procuracao: { ...(prev.procuracao || {}), dataProcuracao: formatted },
+                                      }
+                                    : null
+                                );
+                              }
+                            }}
+                            placeholder="DD/MM/AAAA"
+                            className="w-full px-3 py-1.5 pr-8 border border-slate-300 rounded-lg text-xs font-mono text-slate-900 bg-white focus:border-blue-500 outline-none"
+                          />
+                          <input
+                            type="date"
+                            ref={procuracaoDateRef}
+                            className="sr-only"
+                            tabIndex={-1}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val) {
+                                const [yyyy, mm, dd] = val.split('-');
+                                const formatted = `${dd}/${mm}/${yyyy}`;
+                                setFormData((prev) =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        procuracao: {
+                                          ...(prev.procuracao || {}),
+                                          dataProcuracao: formatted,
+                                        },
+                                      }
+                                    : null
+                                );
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (procuracaoDateRef.current) {
+                                if ('showPicker' in procuracaoDateRef.current) {
+                                  (procuracaoDateRef.current as any).showPicker();
+                                } else {
+                                  (procuracaoDateRef.current as any).focus();
+                                }
+                              }
+                            }}
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                            title="Abrir calendário para escolher a data da procuração"
+                          >
+                            <Calendar className="w-4 h-4 text-blue-600" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Subcampo: Nome (nome do outorgado) */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Nome: <span className="text-[10px] font-normal text-slate-500">(Outorgado)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.procuracao?.nomeOutorgado || ''}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              procuracao: {
+                                ...(formData.procuracao || {}),
+                                nomeOutorgado: e.target.value,
+                              },
+                            })
+                          }
+                          placeholder="Nome do outorgado"
+                          className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs text-slate-900 bg-white focus:border-blue-500 outline-none"
+                        />
+                      </div>
+
+                      {/* Subcampo: CPF (CPF do outorgado) */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          CPF: <span className="text-[10px] font-normal text-slate-500">(Outorgado)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.procuracao?.cpfOutorgado || ''}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              procuracao: {
+                                ...(formData.procuracao || {}),
+                                cpfOutorgado: e.target.value,
+                              },
+                            })
+                          }
+                          onBlur={() => {
+                            if (formData.procuracao?.cpfOutorgado) {
+                              const formatted = formatCpfNumber(formData.procuracao.cpfOutorgado);
+                              setFormData((prev) =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      procuracao: { ...(prev.procuracao || {}), cpfOutorgado: formatted },
+                                    }
+                                  : null
+                              );
+                            }
+                          }}
+                          placeholder="000.000.000-00"
+                          className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-mono text-slate-900 bg-white focus:border-blue-500 outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Subcampo com borda delimitadora: AUTORIZAÇÕES */}
+                    <div className="border border-slate-300 rounded-lg p-3 bg-slate-50/60 space-y-2">
+                      <label className="block text-[11px] font-bold text-slate-800 uppercase tracking-wide">
+                        AUTORIZAÇÕES:
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-700 hover:text-slate-900">
+                          <input
+                            type="checkbox"
+                            checked={formData.procuracao?.autorizacoes?.retiradaCarteirinha || false}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                procuracao: {
+                                  ...(formData.procuracao || {}),
+                                  autorizacoes: {
+                                    ...(formData.procuracao?.autorizacoes || {}),
+                                    retiradaCarteirinha: e.target.checked,
+                                  },
+                                },
+                              })
+                            }
+                            className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span className="font-medium">Retirada de Carteirinha</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-700 hover:text-slate-900">
+                          <input
+                            type="checkbox"
+                            checked={formData.procuracao?.autorizacoes?.retiradaBoletos || false}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                procuracao: {
+                                  ...(formData.procuracao || {}),
+                                  autorizacoes: {
+                                    ...(formData.procuracao?.autorizacoes || {}),
+                                    retiradaBoletos: e.target.checked,
+                                  },
+                                },
+                              })
+                            }
+                            className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span className="font-medium">Retirada de Boletos</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-700 hover:text-slate-900">
+                          <input
+                            type="checkbox"
+                            checked={formData.procuracao?.autorizacoes?.cancelamentoPlano || false}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                procuracao: {
+                                  ...(formData.procuracao || {}),
+                                  autorizacoes: {
+                                    ...(formData.procuracao?.autorizacoes || {}),
+                                    cancelamentoPlano: e.target.checked,
+                                  },
+                                },
+                              })
+                            }
+                            className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span className="font-medium">Cancelamento do Plano</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    {formData.procuracao?.nomeOutorgado || formData.procuracao?.dataProcuracao ? (
+                      <div className="space-y-2.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                            <span className="text-[10px] text-slate-500 font-bold block uppercase">Data da Procuração:</span>
+                            <span className="font-mono font-semibold text-slate-800">
+                              {formData.procuracao.dataProcuracao || 'Não informada'}
+                            </span>
+                          </div>
+
+                          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                            <span className="text-[10px] text-slate-500 font-bold block uppercase">Nome do Outorgado:</span>
+                            <span className="font-bold text-slate-900">
+                              {formData.procuracao.nomeOutorgado || 'Não informado'}
+                            </span>
+                          </div>
+
+                          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                            <span className="text-[10px] text-slate-500 font-bold block uppercase">CPF do Outorgado:</span>
+                            <span className="font-mono font-semibold text-slate-800">
+                              {formData.procuracao.cpfOutorgado || 'Não informado'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Subcampo com borda delimitadora: AUTORIZAÇÕES (VIEW) */}
+                        <div className="border border-slate-300 rounded-lg p-2.5 bg-slate-50/60 space-y-1.5">
+                          <span className="text-[10.5px] font-bold text-slate-700 block uppercase tracking-wide">
+                            AUTORIZAÇÕES CONCEDIDAS:
+                          </span>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {formData.procuracao.autorizacoes?.retiradaCarteirinha && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-md text-xs font-semibold">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Retirada de Carteirinha</span>
+                              </span>
+                            )}
+                            {formData.procuracao.autorizacoes?.retiradaBoletos && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-800 border border-blue-300 rounded-md text-xs font-semibold">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+                                <span>Retirada de Boletos</span>
+                              </span>
+                            )}
+                            {formData.procuracao.autorizacoes?.cancelamentoPlano && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-100 text-purple-800 border border-purple-300 rounded-md text-xs font-semibold">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-purple-600" />
+                                <span>Cancelamento do Plano</span>
+                              </span>
+                            )}
+                            {!formData.procuracao.autorizacoes?.retiradaCarteirinha &&
+                              !formData.procuracao.autorizacoes?.retiradaBoletos &&
+                              !formData.procuracao.autorizacoes?.cancelamentoPlano && (
+                                <span className="text-xs text-slate-400 italic">
+                                  Nenhuma autorização específica assinalada.
+                                </span>
+                              )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-slate-50 border border-dashed border-slate-200 rounded-lg text-slate-400 text-xs flex items-center justify-between">
+                        <span>Nenhuma procuração cadastrada para este associado.</span>
+                        <button
+                          type="button"
+                          onClick={() => setMode('EDIT')}
+                          className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                        >
+                          + Adicionar Procuração
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* ================= BLOCO NOVO: VINCULAÇÃO IDENTIFICATIVA (5 ESPAÇOS COM BUSCA) ================= */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                <div className="flex flex-wrap items-center justify-between pb-2 mb-3 border-b border-slate-200 gap-2">
+                  <div className="flex items-center gap-2">
+                    <Link2 className="w-4 h-4 text-blue-600" />
+                    <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
+                      Vinculação Identificativa (Vínculos Familiares / Parentescos na Praça de Esportes)
+                    </h3>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowVinculosReport(true)}
+                    className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="Emitir relatório oficial impresso com todos os vínculos agrupados"
+                  >
+                    <Users className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Emitir Relatório de Vínculos</span>
+                  </button>
+                </div>
+
+                <p className="text-[11px] text-slate-500 mb-3 leading-relaxed">
+                  Informe até 5 números de planos já existentes no sistema com os quais este associado possui vínculo familiar/parentesco. Clique no botão de <strong>Busca</strong> para localizar o plano no banco de dados e navegar até o Módulo GID correspondente.
+                </p>
+
+                {mode === 'EDIT' ? (
+                  <div className="space-y-2.5">
+                    {[0, 1, 2, 3, 4].map((idx) => {
+                      const currentLinks = formData.linkedPlanNumbers || ['', '', '', '', ''];
+                      const currentVal = currentLinks[idx] || '';
+                      const feedback = linkedPlanFeedback[idx];
+
+                      return (
+                        <div key={idx} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="w-20 text-[11px] font-bold text-slate-700 shrink-0 font-mono">
+                              Vínculo #{idx + 1}:
+                            </span>
+                            <input
+                              type="text"
+                              value={currentVal}
+                              onChange={(e) => {
+                                const updated = [...(formData.linkedPlanNumbers || ['', '', '', '', ''])];
+                                updated[idx] = e.target.value;
+                                setFormData({ ...formData, linkedPlanNumbers: updated });
+                                if (linkedPlanFeedback[idx]) {
+                                  setLinkedPlanFeedback((prev) => ({ ...prev, [idx]: null }));
+                                }
+                              }}
+                              placeholder={`Nº do plano vinculado (ex: ${idx === 0 ? '5689' : idx === 1 ? '4219' : '5601'})`}
+                              className="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-mono text-slate-900 bg-white focus:outline-none focus:border-blue-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSearchLinkedPlanInFicha(idx, currentVal)}
+                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 transition-colors shadow-2xs cursor-pointer"
+                              title="Buscar este plano no banco de dados"
+                            >
+                              <Search className="w-3.5 h-3.5" />
+                              <span>Buscar</span>
+                            </button>
+                          </div>
+
+                          {feedback && (
+                            <div
+                              className={`text-[11px] px-2.5 py-1.5 rounded-lg flex flex-wrap items-center justify-between gap-2 ml-0 sm:ml-22 ${
+                                feedback.success
+                                  ? 'bg-emerald-50 text-emerald-950 border border-emerald-300'
+                                  : 'bg-amber-50 text-amber-950 border border-amber-300'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                {feedback.success ? (
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                ) : (
+                                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                )}
+                                <span className="font-medium">{feedback.text}</span>
+                              </div>
+
+                              {feedback.foundCard && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleNavigateToPlan(feedback.foundCard!)}
+                                  className="text-[10.5px] font-bold text-blue-700 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-2 py-0.5 rounded flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
+                                >
+                                  <span>Ir para Módulo GID deste plano</span>
+                                  <ArrowRight className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                    {[0, 1, 2, 3, 4].map((idx) => {
+                      const planNum = (formData.linkedPlanNumbers || [])[idx]?.trim() || '';
+                      if (!planNum) {
+                        return (
+                          <div
+                            key={idx}
+                            className="p-2.5 bg-slate-50/60 border border-dashed border-slate-200 rounded-lg text-slate-400 text-xs flex items-center justify-between"
+                          >
+                            <span className="font-mono text-[10px] text-slate-400">Espaço #{idx + 1}</span>
+                            <span className="italic text-[10.5px]">Não preenchido</span>
+                          </div>
+                        );
+                      }
+
+                      // Busca automática para modo VIEW
+                      const cleanNorm = planNum.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+                      const found = cards.find((c) => {
+                        const cNorm = c.controlNumber.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+                        return (
+                          cNorm === cleanNorm ||
+                          cNorm.includes(cleanNorm) ||
+                          cleanNorm.includes(cNorm) ||
+                          c.controlNumber.toLowerCase().includes(planNum.toLowerCase())
+                        );
+                      });
+
+                      return (
+                        <div
+                          key={idx}
+                          className="p-3 bg-blue-50/70 border border-blue-200 rounded-lg text-xs space-y-1.5 shadow-2xs"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono font-bold text-blue-900 text-[11px] bg-blue-200/80 px-2 py-0.5 rounded">
+                              Vínculo #{idx + 1}: Plano {planNum}
+                            </span>
+                            {found ? (
+                              <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded-full">
+                                Ativo no GID
+                              </span>
+                            ) : (
+                              <span className="text-[9.5px] font-bold text-slate-500 bg-slate-200 px-1.5 py-0.2 rounded-full">
+                                Cadastrado
+                              </span>
+                            )}
+                          </div>
+
+                          {found ? (
+                            <div className="pt-0.5 text-[11px] text-slate-800 space-y-1">
+                              <div>
+                                <strong className="text-slate-900 block leading-tight">{found.name}</strong>
+                                <span className="text-slate-500 text-[10px] font-mono">
+                                  {found.controlNumber} • {found.category}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleNavigateToPlan(found)}
+                                className="w-full mt-1 px-2 py-1 bg-white hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-300 font-bold text-[10.5px] rounded transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                              >
+                                <span>Ver no Módulo GID</span>
+                                <ArrowRight className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="text-[10.5px] text-slate-500 italic pt-1">
+                              Plano {planNum} registrado como vínculo.
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* BLOCO 2: CLASSIFICAÇÃO DO PLANO & CONDIÇÕES */}
@@ -1897,6 +2524,13 @@ export const FichaCadastralModal: React.FC<FichaCadastralModalProps> = ({
           }}
         />
       )}
+
+      {/* ================= MODAL RELATÓRIO DE VÍNCULOS EXISTENTES ================= */}
+      <VinculosReportModal
+        isOpen={showVinculosReport}
+        onClose={() => setShowVinculosReport(false)}
+        initialAssociate={formData}
+      />
     </div>
   );
 };

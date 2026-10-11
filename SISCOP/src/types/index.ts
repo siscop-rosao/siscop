@@ -102,6 +102,18 @@ export interface MonthPayment {
   referenceId?: string; // Campo livre para referência de comprovante / identificador
 }
 
+export interface ProcuracaoData {
+  hasProcuracao?: boolean;
+  dataProcuracao?: string; // Data escolhida no calendário (DD/MM/AAAA ou YYYY-MM-DD)
+  nomeOutorgado?: string; // Nome do outorgado
+  cpfOutorgado?: string; // CPF do outorgado
+  autorizacoes?: {
+    retiradaCarteirinha?: boolean;
+    retiradaBoletos?: boolean;
+    cancelamentoPlano?: boolean;
+  };
+}
+
 export interface CardData {
   id: string;
   controlNumber: string; // e.g. "IND-2026-0102", "FAM-2026-0042-01", "ESP-2026-0010"
@@ -138,6 +150,12 @@ export interface CardData {
   printedCount: number;
   phone?: string;
   address?: string;
+  addressNumber?: string; // Nº:
+  addressComplement?: string; // Complemento:
+  neighborhood?: string; // Bairro:
+  cep?: string; // CEP:
+  linkedPlanNumbers?: string[]; // Vinculação Identificativa (até 5 números de planos já existentes)
+  procuracao?: ProcuracaoData; // Campo PROCURAÇÃO (outorgado, data calendário e autorizações)
   status: 'ATIVO' | 'SUSPENSO' | 'INATIVO';
   medicalExamValidUntil?: string; // Exame médico para piscina
   createdAt: string;

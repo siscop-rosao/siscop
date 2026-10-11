@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { BrasaoPousoAlegre } from '../common/BrasaoPousoAlegre';
 import { GlobalSearchModal } from './GlobalSearchModal';
 import { AcertoCalculatorModal } from '../calculator/AcertoCalculatorModal';
+import { ErrorBoundary } from '../common/ErrorBoundary';
 import {
   Home,
   CreditCard,
@@ -582,10 +583,12 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Modal de Busca Global com Indexação em Tempo Real */}
-      <GlobalSearchModal
-        isOpen={isGlobalSearchOpen}
-        onClose={() => setIsGlobalSearchOpen(false)}
-      />
+      <ErrorBoundary fallbackTitle="Busca SISCOP em Tempo Real">
+        <GlobalSearchModal
+          isOpen={isGlobalSearchOpen}
+          onClose={() => setIsGlobalSearchOpen(false)}
+        />
+      </ErrorBoundary>
 
       {/* Modal de Cálculos de Pagamento de Acerto do Associado (Botão Calc da Barra Fixa Superior - Sem Aba de Histórico) */}
       <AcertoCalculatorModal

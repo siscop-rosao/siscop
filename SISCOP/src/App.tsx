@@ -11,6 +11,7 @@ import { BackupManagerModal } from './components/backup/BackupManagerModal';
 import { SetupModal } from './components/setup/SetupModal';
 import { AboutModal } from './components/about/AboutModal';
 import { FichaCadastralModal } from './components/gid/FichaCadastralModal';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 const AppContent: React.FC = () => {
   const {
@@ -111,7 +112,9 @@ const AppContent: React.FC = () => {
 export default function App() {
   return (
     <AppProvider>
-      <AppContent />
+      <ErrorBoundary fallbackTitle="SISCOP • Praça de Esportes">
+        <AppContent />
+      </ErrorBoundary>
     </AppProvider>
   );
 }
