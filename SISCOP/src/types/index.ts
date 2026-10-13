@@ -156,6 +156,7 @@ export interface CardData {
   cep?: string; // CEP:
   linkedPlanNumbers?: string[]; // Vinculação Identificativa (até 5 números de planos já existentes)
   procuracao?: ProcuracaoData; // Campo PROCURAÇÃO (outorgado, data calendário e autorizações)
+  batchPrintSelected?: boolean; // Selecionado para Impressão em Lote (Plano Individual)
   status: 'ATIVO' | 'SUSPENSO' | 'INATIVO';
   medicalExamValidUntil?: string; // Exame médico para piscina
   createdAt: string;
@@ -248,6 +249,7 @@ export interface PopProcedure {
   importantNotes?: string; // Atenção / Observações críticas
   legalBasis?: string; // Base legal / Lei Municipal
   isPinned?: boolean; // Fixado com PIN
+  pinnedIndex?: number; // Posição exata travada quando o pino está ativado
   orderIndex?: number; // Ordem de arrasto e posicionamento
   pricingTables?: PopPricingTables; // Tabelas de taxas e valores editáveis
   updatedAt: string;

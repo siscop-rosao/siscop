@@ -910,10 +910,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     if (category === 'PLANO_FAMILIAR') {
       if (!isTitular && familyBase) {
-        const count = cards.filter(
-          (c) => c.familyHeadId === familyBase || c.controlNumber.startsWith(familyBase)
-        ).length;
-        return `${familyBase}-${String(count + 1).padStart(2, '0')}`;
+        const cleanBase = familyBase.trim();
+        const count = cards.filter((c) => {
+          const cCtrl = String(c.controlNumber || '');
+          return c.familyHeadId === cleanBase || cCtrl.startsWith(cleanBase);
+        }).length;
+        return `${cleanBase}-${String(count + 1).padStart(2, '0')}`;
       } else {
         const famCards = cards.filter((c) => c.category === 'PLANO_FAMILIAR' && c.isTitular);
         const nextNum = famCards.length + 1;
@@ -970,7 +972,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       medicalReportInfo: cardData.medicalReportInfo || '',
       year1: cardData.year1 || currentYear,
       year2: cardData.year2 || nextYear,
-      // Verso sempre limpo com células em branco para inserção manual
+      physicalArchiveLocation: cardData.physicalArchiveLocation || '',
       grid1: generateDefaultPaymentGrid(),
       grid2: generateDefaultPaymentGrid(),
       notesHtml: cardData.notesHtml || '',
@@ -978,14 +980,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       printedCount: 0,
       phone: cardData.phone || '',
       address: cardData.address || '',
+      addressNumber: cardData.addressNumber || '',
+      addressComplement: cardData.addressComplement || '',
+      neighborhood: cardData.neighborhood || '',
+      cep: cardData.cep || '',
+      linkedPlanNumbers: cardData.linkedPlanNumbers || [],
+      procuracao: cardData.procuracao,
+      batchPrintSelected: cardData.batchPrintSelected || false,
       status: cardData.status || 'ATIVO',
       medicalExamValidUntil: cardData.medicalExamValidUntil || '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      lastEditedBy: currentUser?.name,
+      lastEditedBy: currentUser?.name || 'Administrador',
     };
 
-    setCards((prev) => [newCard, ...prev]);
+    setCards((prev) => {
+      const updated = [newCard, ...prev];
+      try {
+        localStorage.setItem(STORAGE_KEYS.CARDS, JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Falha ao salvar cards no localStorage:', e);
+      }
+      return updated;
+    });
     syncCardToFirestore(newCard);
     addLog(
       'CRIAR_USUARIO_GID',
@@ -999,11 +1016,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addFamilyMember = (titularId: string, dependentData: Partial<CardData>): CardData => {
-    const titular = cards.find((c) => c.id === titularId);
-    if (!titular) throw new Error('Titular não localizado.');
+    // Busca o titular tanto por ID quanto por Número de Controle como contingência
+    const titular = cards.find((c) => c.id === titularId || c.controlNumber === titularId);
+    if (!titular) {
+      console.error('[addFamilyMember] Titular não localizado para o ID:', titularId);
+      throw new Error('Titular não localizado.');
+    }
 
-    const familyBase = titular.controlNumber.replace(/-\d+$/, '');
-    const nextDepNum = generateNextControlNumber('PLANO_FAMILIAR', false, familyBase);
+    const currentYear = new Date().getFullYear();
+    const titularCtrl = String(titular.controlNumber || '').trim();
+
+    // Determina a base do plano familiar (ex: de "FAM-2026-0042-01" extrai "FAM-2026-0042"; de "5689" usa "5689")
+    let familyBase = titularCtrl;
+    if (titularCtrl.includes('-')) {
+      familyBase = titularCtrl.replace(/-\d+$/, '').trim();
+    }
+    if (!familyBase) {
+      familyBase = `FAM-${currentYear}-0001`;
+    }
+
+    // Identifica todos os membros já existentes desta família para calcular o próximo sufixo sequencial
+    const existingFamilyCards = cards.filter(
+      (c) =>
+        c.id === titular.id ||
+        c.familyHeadId === titular.id ||
+        (familyBase && String(c.controlNumber || '').startsWith(familyBase))
+    );
+
+    let nextSeq = existingFamilyCards.length + 1;
+    let nextDepNum = `${familyBase}-${String(nextSeq).padStart(2, '0')}`;
+
+    // Garante que o número gerado seja estritamente único no sistema
+    while (cards.some((c) => String(c.controlNumber || '').trim().toLowerCase() === nextDepNum.toLowerCase())) {
+      nextSeq++;
+      nextDepNum = `${familyBase}-${String(nextSeq).padStart(2, '0')}`;
+    }
 
     const newDep: CardData = {
       id: `card-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -1012,31 +1059,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       category: 'PLANO_FAMILIAR',
       familyHeadId: titular.id,
       isTitular: false,
-      familyName: titular.familyName,
-      name: dependentData.name || 'Dependente Familiar',
+      familyName: titular.familyName || titular.name,
+      name: dependentData.name?.trim() || 'Dependente Familiar',
       birthDate: dependentData.birthDate || '',
       rgOrCpf: dependentData.rgOrCpf || '',
-      photoUrl: '',
-      directorLabel: titular.directorLabel || 'Diretor',
+      photoUrl: dependentData.photoUrl || '',
+      directorLabel: titular.directorLabel || layoutConfig.directorLabel || 'Diretor',
       directorName: titular.directorName || 'Prof. Marcos Vinícius',
-      year1: titular.year1,
-      year2: titular.year2,
+      year1: titular.year1 || String(currentYear),
+      year2: titular.year2 || String(currentYear + 1),
+      physicalArchiveLocation: dependentData.physicalArchiveLocation || titular.physicalArchiveLocation || '',
       grid1: generateDefaultPaymentGrid(),
       grid2: generateDefaultPaymentGrid(),
-      notesHtml: dependentData.notesHtml || `<div>Dependente de ${titular.name}</div>`,
+      notesHtml: dependentData.notesHtml || `<div><strong>Dependente Familiar</strong> de ${titular.name}</div>`,
       emissionDate: new Date().toLocaleDateString('pt-BR'),
       printedCount: 0,
-      phone: titular.phone,
-      address: titular.address,
+      phone: dependentData.phone || titular.phone || '',
+      address: dependentData.address || titular.address || '',
+      addressNumber: dependentData.addressNumber || titular.addressNumber || '',
+      addressComplement: dependentData.addressComplement || titular.addressComplement || '',
+      neighborhood: dependentData.neighborhood || titular.neighborhood || '',
+      cep: dependentData.cep || titular.cep || '',
+      linkedPlanNumbers: dependentData.linkedPlanNumbers || titular.linkedPlanNumbers || [],
+      procuracao: dependentData.procuracao,
+      batchPrintSelected: false,
       status: 'ATIVO',
       medicalExamValidUntil: titular.medicalExamValidUntil,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      lastEditedBy: currentUser?.name,
+      lastEditedBy: currentUser?.name || 'Administrador',
     };
 
-    setCards((prev) => [...prev, newDep]);
+    setCards((prev) => {
+      const updated = [...prev, newDep];
+      try {
+        localStorage.setItem(STORAGE_KEYS.CARDS, JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Falha ao persistir carteirinhas no localStorage:', e);
+      }
+      return updated;
+    });
+
     syncCardToFirestore(newDep);
+
     addLog(
       'CRIAR_USUARIO_GID',
       'GID_USUARIOS',
@@ -1197,8 +1262,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `pop-${Date.now()}`,
       createdBy: currentUser?.name || 'Diretoria',
       updatedAt: new Date().toISOString().split('T')[0],
+      isPinned: false,
     };
-    setPopProcedures((prev) => [newPop, ...prev]);
+
+    setPopProcedures((prev) => {
+      // Cria array de resultado com espaço para o novo POP
+      const result: (PopProcedure | null)[] = new Array(prev.length + 1).fill(null);
+
+      // 1. Mantém rigorosamente todos os POPs fixados em suas exatas posições atuais
+      const unpinnedItems: PopProcedure[] = [];
+      prev.forEach((item, idx) => {
+        if (item.isPinned) {
+          result[idx] = item;
+        } else {
+          unpinnedItems.push(item);
+        }
+      });
+
+      // 2. Insere o novo POP no primeiro espaço livre (não-fixado), sem deslocar nenhum POP fixado
+      const itemsToPlace = [newPop, ...unpinnedItems];
+      let placeIdx = 0;
+      for (let i = 0; i < result.length; i++) {
+        if (result[i] === null && placeIdx < itemsToPlace.length) {
+          result[i] = itemsToPlace[placeIdx];
+          placeIdx++;
+        }
+      }
+
+      const finalList = result.filter(Boolean) as PopProcedure[];
+      try {
+        localStorage.setItem(STORAGE_KEYS.POP, JSON.stringify(finalList));
+      } catch (e) {
+        console.warn('Falha ao salvar POP no localStorage:', e);
+      }
+      return finalList;
+    });
+
     addLog(
       'CRIAR_POP',
       'POP',
@@ -1237,13 +1336,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const togglePinPop = (id: string) => {
-    setPopProcedures((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, isPinned: !p.isPinned } : p))
-    );
+    setPopProcedures((prev) => {
+      const updated = prev.map((p, idx) => {
+        if (p.id === id) {
+          const willPin = !p.isPinned;
+          return {
+            ...p,
+            isPinned: willPin,
+            pinnedIndex: willPin ? idx : undefined,
+          };
+        }
+        return p;
+      });
+      try {
+        localStorage.setItem(STORAGE_KEYS.POP, JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Falha ao salvar POP no localStorage:', e);
+      }
+      return updated;
+    });
   };
 
   const reorderPopProcedures = (newProcedures: PopProcedure[]) => {
-    setPopProcedures(newProcedures);
+    const updated = newProcedures.map((p, idx) => ({
+      ...p,
+      pinnedIndex: p.isPinned ? idx : undefined,
+    }));
+    setPopProcedures(updated);
+    try {
+      localStorage.setItem(STORAGE_KEYS.POP, JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Falha ao salvar POP no localStorage:', e);
+    }
   };
 
   const clearLogs = () => {

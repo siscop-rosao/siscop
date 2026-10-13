@@ -167,7 +167,41 @@ export const GdaModule: React.FC = () => {
     }
   };
 
-  // ITEM 2: Gravar e conferir número do plano / controle com indicador verde/vermelho e alerta
+  // Função auxiliar para replicar número do plano / controle para todos os membros do Plano Familiar
+  const replicateControlNumberToFamily = (typedNumber: string) => {
+    if (!activeCard) return;
+    const isFam = formData.category === 'PLANO_FAMILIAR' || activeCard.planType === 'FAMILIAR';
+    if (!isFam || !titularCard) {
+      updateCard(activeCard.id, { controlNumber: typedNumber });
+      return;
+    }
+
+    const targetFamilyId = titularCard.id;
+    const dependents = cards.filter((c) => c.familyHeadId === targetFamilyId && c.id !== targetFamilyId);
+
+    if (/-\d+$/.test(typedNumber)) {
+      const base = typedNumber.replace(/-\d+$/, '').trim();
+      const titularNum = `${base}-01`;
+      updateCard(titularCard.id, { controlNumber: titularNum });
+      dependents.forEach((dep, idx) => {
+        const depNum = `${base}-${String(idx + 2).padStart(2, '0')}`;
+        updateCard(dep.id, { controlNumber: depNum });
+      });
+      const activeNum =
+        activeCard.id === titularCard.id
+          ? titularNum
+          : `${base}-${String(dependents.findIndex((d) => d.id === activeCard.id) + 2).padStart(2, '0')}`;
+      setFormData((prev) => ({ ...prev, controlNumber: activeNum }));
+    } else {
+      updateCard(titularCard.id, { controlNumber: typedNumber });
+      dependents.forEach((dep) => {
+        updateCard(dep.id, { controlNumber: typedNumber });
+      });
+      setFormData((prev) => ({ ...prev, controlNumber: typedNumber }));
+    }
+  };
+
+  // ITEM 2: Gravar e conferir número do plano / controle com indicador verde/vermelho, alerta e replicação no Plano Familiar
   const handleSaveControlNumber = () => {
     const typedNumber = (formData.controlNumber || '').trim();
     if (!typedNumber) {
@@ -180,12 +214,18 @@ export const GdaModule: React.FC = () => {
     const planWord = isFam ? 'FAMILIAR' : 'INDIVIDUAL';
 
     // Conferência no banco de dados para saber se aquele número digitado já foi utilizado por outro cartão
-    const duplicate = cards.find(
-      (c) => c.id !== activeCard?.id && c.controlNumber?.trim().toLowerCase() === typedNumber.toLowerCase()
-    );
+    // No Plano Familiar, os membros da MESMA família compartilham o plano e não geram falso conflito entre si
+    const duplicate = cards.find((c) => {
+      if (c.id === activeCard?.id) return false;
+      if (isFam && titularCard) {
+        const isSameFamily = c.id === titularCard.id || c.familyHeadId === titularCard.id;
+        if (isSameFamily) return false;
+      }
+      return String(c.controlNumber || '').trim().toLowerCase() === typedNumber.toLowerCase();
+    });
 
     if (duplicate) {
-      // Já foi utilizado: Bloqueia gravação, botão redondo fica vermelho, abre janela de alerta
+      // Já foi utilizado por outro associado/família: Bloqueia gravação, botão redondo fica vermelho, abre janela de alerta
       setNumberValidationStatus('duplicate');
       setDuplicateWarningModal({
         isOpen: true,
@@ -198,9 +238,7 @@ export const GdaModule: React.FC = () => {
 
     // Ainda não foi utilizado: Permite gravação no banco de dados e botão redondo acende verde
     setNumberValidationStatus('valid');
-    if (activeCard) {
-      updateCard(activeCard.id, { controlNumber: typedNumber });
-    }
+    replicateControlNumberToFamily(typedNumber);
     setSaveToast(true);
     setTimeout(() => setSaveToast(false), 2500);
   };
@@ -210,15 +248,24 @@ export const GdaModule: React.FC = () => {
     if (activeCard) {
       updateCard(activeCard.id, formData);
 
-      // Replicar localização de arquivo físico se for plano familiar
       const isFam = formData.category === 'PLANO_FAMILIAR' || activeCard.planType === 'FAMILIAR';
-      if (isFam && titularCard && formData.physicalArchiveLocation !== undefined) {
-        const dependents = cards.filter((c) => c.familyHeadId === titularCard.id);
-        dependents.forEach((dep) => {
-          updateCard(dep.id, { physicalArchiveLocation: formData.physicalArchiveLocation });
-        });
-        if (titularCard.id !== activeCard.id) {
-          updateCard(titularCard.id, { physicalArchiveLocation: formData.physicalArchiveLocation });
+      if (isFam && titularCard) {
+        const targetFamilyId = titularCard.id;
+        const dependents = cards.filter((c) => c.familyHeadId === targetFamilyId && c.id !== targetFamilyId);
+
+        // Replicar localização de arquivo físico se for plano familiar
+        if (formData.physicalArchiveLocation !== undefined) {
+          dependents.forEach((dep) => {
+            updateCard(dep.id, { physicalArchiveLocation: formData.physicalArchiveLocation });
+          });
+          if (titularCard.id !== activeCard.id) {
+            updateCard(titularCard.id, { physicalArchiveLocation: formData.physicalArchiveLocation });
+          }
+        }
+
+        // Replicar número do plano / controle se for plano familiar
+        if (formData.controlNumber) {
+          replicateControlNumberToFamily(formData.controlNumber.trim());
         }
       }
 
@@ -542,8 +589,13 @@ export const GdaModule: React.FC = () => {
 
               {/* ================= ITEM 2: NÚMERO DO PLANO / CONTROLE COM GRAVAR E BOTÃO REDONDO ================= */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Número do Plano / Controle:
+                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Número do Plano / Controle:</span>
+                  {isFamily && (
+                    <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                      Replicado na Família
+                    </span>
+                  )}
                 </label>
                 <div className="flex items-center gap-2">
                   {/* Botão redondo pequeno à esquerda (Verde se gravado e válido, Vermelho se já existente) */}
@@ -589,7 +641,9 @@ export const GdaModule: React.FC = () => {
                   </button>
                 </div>
                 <span className="text-[10px] text-slate-500 block mt-1">
-                  * 4 dígitos (ex: 4550). O indicador redondo acende em verde se liberado ou vermelho se já existente.
+                  {isFamily
+                    ? '★ Plano Familiar: Ao gravar, o número do plano é replicado automaticamente para todos os dependentes desta família.'
+                    : '* 4 dígitos (ex: 4550). O indicador redondo acende em verde se liberado ou vermelho se já existente.'}
                 </span>
               </div>
 

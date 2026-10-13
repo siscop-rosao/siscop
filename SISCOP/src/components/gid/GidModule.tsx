@@ -167,8 +167,14 @@ export const GidModule: React.FC = () => {
   // Add dependent modal
   const [showAddDependentModal, setShowAddDependentModal] = useState(false);
   const [targetTitular, setTargetTitular] = useState<CardData | null>(null);
-  const [newDependentName, setNewDependentName] = useState('');
-  const [newDependentBirthDate, setNewDependentBirthDate] = useState('');
+  const [dependentFormData, setDependentFormData] = useState({
+    name: '',
+    birthDate: '',
+    rgOrCpf: '',
+    phone: '',
+    notesHtml: '',
+  });
+  const depDateInputRef = useRef<HTMLInputElement>(null);
 
   // Controle de expansão/retração dos membros dependentes por titular do plano familiar (por padrão RETRAÍDAS)
   const [expandedFamilyIds, setExpandedFamilyIds] = useState<Record<string, boolean>>({});
@@ -357,23 +363,36 @@ export const GidModule: React.FC = () => {
   // Add dependent submit
   const handleAddDependentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!targetTitular || !newDependentName.trim()) return;
+    if (!targetTitular || !dependentFormData.name.trim()) return;
 
-    addFamilyMember(targetTitular.id, {
-      name: newDependentName.trim(),
-      birthDate: newDependentBirthDate,
-    });
+    try {
+      const created = addFamilyMember(targetTitular.id, {
+        name: dependentFormData.name.trim(),
+        birthDate: dependentFormData.birthDate,
+        rgOrCpf: dependentFormData.rgOrCpf,
+        phone: dependentFormData.phone || targetTitular.phone,
+        notesHtml: dependentFormData.notesHtml,
+      });
 
-    // Auto-expand esta família para que o dependente recém-criado seja exibido imediatamente
-    setExpandedFamilyIds((prev) => ({
-      ...prev,
-      [targetTitular.id]: true,
-    }));
+      // Auto-expand esta família para que o dependente recém-criado seja exibido imediatamente
+      setExpandedFamilyIds((prev) => ({
+        ...prev,
+        [targetTitular.id]: true,
+      }));
 
-    setShowAddDependentModal(false);
-    setTargetTitular(null);
-    setNewDependentName('');
-    setNewDependentBirthDate('');
+      setShowAddDependentModal(false);
+      setTargetTitular(null);
+      setDependentFormData({
+        name: '',
+        birthDate: '',
+        rgOrCpf: '',
+        phone: '',
+        notesHtml: '',
+      });
+    } catch (err: any) {
+      console.error('Falha ao adicionar dependente:', err);
+      alert('Não foi possível gravar o dependente: ' + (err?.message || 'Erro desconhecido.'));
+    }
   };
 
   // Open reservation modal
@@ -1926,8 +1945,8 @@ export const GidModule: React.FC = () => {
                   <input
                     type="text"
                     required
-                    value={newDependentName}
-                    onChange={(e) => setNewDependentName(e.target.value)}
+                    value={dependentFormData.name}
+                    onChange={(e) => setDependentFormData({ ...dependentFormData, name: e.target.value })}
                     placeholder="Ex: Cônjuge, Filho(a)"
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
@@ -1937,13 +1956,65 @@ export const GidModule: React.FC = () => {
                   <label className="block font-semibold text-slate-700 mb-1">
                     Data de Nascimento:
                   </label>
+                  <div className="relative flex items-center">
+                    <input
+                      type="text"
+                      value={dependentFormData.birthDate}
+                      onChange={(e) => setDependentFormData({ ...dependentFormData, birthDate: e.target.value })}
+                      onBlur={() =>
+                        setDependentFormData((prev) => ({
+                          ...prev,
+                          birthDate: formatBirthDate(prev.birthDate),
+                        }))
+                      }
+                      placeholder="DD/MM/AAAA (ex: 15/01/2010)"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs pr-9"
+                    />
+                    <input
+                      ref={depDateInputRef}
+                      type="date"
+                      className="sr-only"
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const [y, m, d] = e.target.value.split('-');
+                          setDependentFormData((prev) => ({ ...prev, birthDate: `${d}/${m}/${y}` }));
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => depDateInputRef.current?.showPicker?.() || depDateInputRef.current?.click()}
+                      className="absolute right-2 p-1 text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                      title="Abrir calendário"
+                    >
+                      <Calendar className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    RG ou CPF (Opcional):
+                  </label>
                   <input
                     type="text"
-                    value={newDependentBirthDate}
-                    onChange={(e) => setNewDependentBirthDate(e.target.value)}
-                    onBlur={() => setNewDependentBirthDate(formatBirthDate(newDependentBirthDate))}
-                    placeholder="DD/MM/AAAA (ex: 15012026)"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs"
+                    value={dependentFormData.rgOrCpf}
+                    onChange={(e) => setDependentFormData({ ...dependentFormData, rgOrCpf: e.target.value })}
+                    placeholder="Ex: 000.000.000-00"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Telefone / Celular (Opcional):
+                  </label>
+                  <input
+                    type="text"
+                    value={dependentFormData.phone}
+                    onChange={(e) => setDependentFormData({ ...dependentFormData, phone: e.target.value })}
+                    placeholder="(35) 99999-9999"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
               </div>
