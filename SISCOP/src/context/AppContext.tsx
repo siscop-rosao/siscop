@@ -1279,8 +1279,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       });
 
-      // 2. Insere o novo POP no primeiro espaço livre (não-fixado), sem deslocar nenhum POP fixado
-      const itemsToPlace = [newPop, ...unpinnedItems];
+      // 2. Insere os itens não fixados mantendo sua ordem, e coloca o novo POP na primeira posição vaga livre
+      // Sem jamais alterar ou deslocar o índice de nenhum POP fixado com pino
+      const itemsToPlace = [...unpinnedItems, newPop];
       let placeIdx = 0;
       for (let i = 0; i < result.length; i++) {
         if (result[i] === null && placeIdx < itemsToPlace.length) {

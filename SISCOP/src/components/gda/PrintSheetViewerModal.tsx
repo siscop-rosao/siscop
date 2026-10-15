@@ -32,7 +32,7 @@ interface PrintSheetViewerModalProps {
   initialMode?: PrintMode;
 }
 
-export type PrintMode = 'FAMILY' | 'SINGLE_4X' | 'SINGLE_1X' | 'ALL_ACTIVE';
+export type PrintMode = 'FAMILY' | 'SINGLE_4X' | 'SINGLE_1X' | 'ALL_ACTIVE' | 'BATCH_INDIVIDUAL';
 
 export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
   isOpen,
@@ -92,6 +92,10 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
   } else if (printMode === 'FAMILY') {
     // Family members
     cardsList = familyMembers.length > 0 ? familyMembers : (activeCard ? [activeCard] : []);
+  } else if (printMode === 'BATCH_INDIVIDUAL') {
+    // Carteirinhas do Plano Individual selecionadas em lote
+    const batchCards = allCards.filter((c) => c.batchPrintSelected);
+    cardsList = batchCards.length > 0 ? batchCards : (activeCard ? [activeCard] : []);
   } else if (printMode === 'ALL_ACTIVE') {
     // All cards in system
     cardsList = allCards;
@@ -498,6 +502,25 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
         {/* Print mode selector */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="font-semibold text-slate-300 mr-1">Modo de Distribuição:</span>
+          {/* Modo Impressão em Lote (Plano Individual) */}
+          {allCards.some((c) => c.batchPrintSelected) && (
+            <button
+              onClick={() => {
+                setPrintMode('BATCH_INDIVIDUAL');
+                setCurrentPage(0);
+              }}
+              className={`px-2.5 py-1 rounded-md font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
+                printMode === 'BATCH_INDIVIDUAL'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-indigo-900/80 text-indigo-200 hover:bg-indigo-800 border border-indigo-700/60'
+              }`}
+              title="Exibir na folha todas as carteirinhas individuais marcadas para Impressão em Lote (4 por folha)"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Impressão em Lote ({allCards.filter((c) => c.batchPrintSelected).length})</span>
+            </button>
+          )}
+
           {familyMembers.length > 1 && (
             <button
               onClick={() => {
@@ -672,7 +695,7 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
                         <div className="w-full h-full flex items-center justify-center overflow-visible relative">
                           <div
                             style={{
-                              transform: 'rotate(-90deg)',
+                              transform: 'rotate(-90deg) scale(0.97)',
                               transformOrigin: 'center center',
                               width: `${cardTotalWidthMm}mm`,
                               height: `${cardHeightMm}mm`,

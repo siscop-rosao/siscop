@@ -210,7 +210,13 @@ export function subscribeToCards(onUpdate: (cards: CardData[]) => void): () => v
         if (!snapshot.empty) {
           const cardsList: CardData[] = [];
           snapshot.forEach((d) => {
-            cardsList.push(d.data() as CardData);
+            const data = d.data();
+            if (data) {
+              cardsList.push({
+                ...data,
+                id: data.id || d.id,
+              } as CardData);
+            }
           });
           onUpdate(cardsList);
         }

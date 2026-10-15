@@ -81,7 +81,6 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
       style={{
         transform: scale !== 1 ? `scale(${scale})` : undefined,
         transformOrigin: 'top center',
-        borderBottom: config.foldOrientation === 'horizontal' ? '2px solid #0f172a' : undefined,
       }}
     >
       {/* ================= FRENTE DA CARTEIRINHA ================= */}
@@ -97,7 +96,6 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
             border: config.showBorder
               ? `${config.borderWidth}px solid ${config.borderColor}`
               : '1px solid #cbd5e1',
-            borderBottom: '2px solid #0f172a',
           backgroundColor: config.cardBackground,
           fontFamily:
             config.fontFamily === 'Courier'
@@ -331,7 +329,6 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
           border: config.showBorder
             ? `${config.borderWidth}px solid ${config.borderColor}`
             : '1px solid #cbd5e1',
-          borderBottom: '2px solid #0f172a',
           backgroundColor: config.cardBackground,
           fontFamily:
             config.fontFamily === 'Courier'
@@ -408,13 +405,11 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
           </div>
         </div>
 
-        {/* Rodapé do Verso: NÃO PLASTIFICAR com Linha de Corte Destacada */}
-        <div className="mt-0.5 border-t border-slate-300 pt-0.5 pb-0 flex flex-col items-center justify-center w-full shrink-0">
-          <span className="text-[9.5px] font-black text-center text-slate-950 tracking-wide uppercase leading-none whitespace-nowrap">
+        {/* Rodapé do Verso: NÃO PLASTIFICAR (Linha desnecessária eliminada, contorno uniforme e rente ao texto) */}
+        <div className="mt-0.5 pt-0.5 pb-0.5 flex flex-col items-center justify-center w-full shrink-0">
+          <span className="text-[9px] font-black text-center text-slate-950 tracking-wider uppercase leading-none whitespace-nowrap">
             NÃO PLASTIFICAR
           </span>
-          {/* Linha de corte / borda lateral obrigatória abaixo do NÃO PLASTIFICAR (corredor de corte) */}
-          <div className="w-full border-b-[2px] border-slate-950 mt-1" style={{ minHeight: '2px', height: '2px' }} />
         </div>
       </div>
       )}

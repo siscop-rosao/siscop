@@ -167,6 +167,7 @@ export const GidModule: React.FC = () => {
   // Add dependent modal
   const [showAddDependentModal, setShowAddDependentModal] = useState(false);
   const [targetTitular, setTargetTitular] = useState<CardData | null>(null);
+  const [addDependentToast, setAddDependentToast] = useState<string | null>(null);
   const [dependentFormData, setDependentFormData] = useState({
     name: '',
     birthDate: '',
@@ -363,15 +364,24 @@ export const GidModule: React.FC = () => {
   // Add dependent submit
   const handleAddDependentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!targetTitular || !dependentFormData.name.trim()) return;
+    if (!targetTitular) {
+      alert('Selecione uma família antes de adicionar o dependente.');
+      return;
+    }
+    const nameClean = (dependentFormData.name || '').trim();
+    if (!nameClean) {
+      alert('Por favor, informe o Nome Completo do dependente.');
+      return;
+    }
 
     try {
       const created = addFamilyMember(targetTitular.id, {
-        name: dependentFormData.name.trim(),
+        name: nameClean,
         birthDate: dependentFormData.birthDate,
         rgOrCpf: dependentFormData.rgOrCpf,
         phone: dependentFormData.phone || targetTitular.phone,
         notesHtml: dependentFormData.notesHtml,
+        physicalArchiveLocation: targetTitular.physicalArchiveLocation || '',
       });
 
       // Auto-expand esta família para que o dependente recém-criado seja exibido imediatamente
@@ -381,6 +391,11 @@ export const GidModule: React.FC = () => {
       }));
 
       setShowAddDependentModal(false);
+      setAddDependentToast(
+        `Dependente "${created.name}" gravado com sucesso no Plano Familiar (Nº ${created.controlNumber})!`
+      );
+      setTimeout(() => setAddDependentToast(null), 4000);
+
       setTargetTitular(null);
       setDependentFormData({
         name: '',
@@ -738,6 +753,23 @@ export const GidModule: React.FC = () => {
             </div>
           )}
 
+          {/* TOAST DE SUCESSO AO ADICIONAR DEPENDENTE */}
+          {addDependentToast && (
+            <div className="bg-emerald-600 text-white px-6 py-2.5 flex items-center justify-between text-xs font-bold shadow-xs transition-all">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-200 shrink-0" />
+                <span>{addDependentToast}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAddDependentToast(null)}
+                className="text-emerald-200 hover:text-white cursor-pointer px-1.5 py-0.5 rounded hover:bg-emerald-700"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {/* TABLE / LIST OF MEMBERS WITH CONTROL NUMBERS & FORMATTED NOTEPAD */}
           <div className="flex-1 overflow-auto p-4 sm:p-6">
             <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
@@ -975,6 +1007,26 @@ export const GidModule: React.FC = () => {
                                 </td>
                               </tr>
                             ))}
+
+                            {/* Botão para adicionar dependente a esta família */}
+                            {isExpanded && (
+                              <tr className="bg-indigo-50/20 border-b border-indigo-100/70">
+                                <td colSpan={6} className="py-2.5 px-4 pl-8">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setTargetTitular(titular);
+                                      setShowAddDependentModal(true);
+                                    }}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold border border-indigo-200 transition-colors shadow-2xs cursor-pointer"
+                                    title="Adicionar dependente a esta família"
+                                  >
+                                    <UserPlus className="w-3.5 h-3.5 text-indigo-600" />
+                                    <span>+ Adicionar dependente a esta família ({titular.name.split(' ')[0]})</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            )}
                           </React.Fragment>
                         );
                       })
