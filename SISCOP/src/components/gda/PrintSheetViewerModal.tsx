@@ -683,19 +683,19 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
 
             return (
               <div key={pgIdx} className="a4-print-page">
-                {/* 4 Colunas Verticais com Carteirinhas Reais: A4 Paisagem (297mm x 210mm) com corredor reduzido em 1.5mm e margem externa protegida contra cortes de impressora */}
-                <div className="flex items-center justify-between h-[210mm] w-[297mm] px-[5mm] my-auto overflow-visible">
+                {/* 4 Colunas Verticais com Carteirinhas Reais: A4 Paisagem (297mm x 210mm) com margem de segurança expandida contra cortes de impressora */}
+                <div className="flex items-center justify-between h-[210mm] w-[297mm] px-[6.5mm] my-auto overflow-visible">
                   {pageSlots.map((card, slotIdx) => (
                     <div
                       key={slotIdx}
-                      className="relative flex flex-col items-center justify-center border-0 bg-white overflow-visible h-full w-[70mm] shrink-0"
+                      className="relative flex flex-col items-center justify-center border-0 bg-white overflow-visible h-full w-[69mm] shrink-0"
                       style={{ zIndex: 10 - slotIdx }}
                     >
                       {card ? (
                         <div className="w-full h-full flex items-center justify-center overflow-visible relative">
                           <div
                             style={{
-                              transform: 'rotate(-90deg) scale(0.97)',
+                              transform: 'rotate(-90deg) scale(0.96)',
                               transformOrigin: 'center center',
                               width: `${cardTotalWidthMm}mm`,
                               height: `${cardHeightMm}mm`,

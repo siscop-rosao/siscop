@@ -87,14 +87,14 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
       {renderOnly !== 'back' && (
         <div
           id={`card-front-${card.id}`}
-          className="relative bg-white text-slate-900 overflow-hidden box-border p-3.5 flex flex-col justify-between shadow-xs print:shadow-none"
+          className="relative bg-white text-slate-900 overflow-hidden box-border pt-2.5 px-3 pb-1.5 flex flex-col justify-between print:shadow-none"
           style={{
             width: cardWidthStyle,
             height: cardHeightStyle,
             minWidth: cardWidthStyle,
             minHeight: cardHeightStyle,
             border: config.showBorder
-              ? `${config.borderWidth}px solid ${config.borderColor}`
+              ? `${config.borderWidth || 1}px solid ${config.borderColor || '#1e293b'}`
               : '1px solid #cbd5e1',
           backgroundColor: config.cardBackground,
           fontFamily:
@@ -318,7 +318,7 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
       {renderOnly !== 'front' && (
       <div
         id={`card-back-${card.id}`}
-        className={`relative bg-white text-slate-900 overflow-hidden box-border pt-0.5 px-1.5 pb-0.5 flex flex-col justify-between shadow-xs print:shadow-none ${
+        className={`relative bg-white text-slate-900 overflow-hidden box-border pt-0.5 px-1.5 pb-0 flex flex-col justify-between print:shadow-none ${
           config.rotateVerso180 ? 'rotate-180' : ''
         }`}
         style={{
@@ -327,7 +327,7 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
           minWidth: cardWidthStyle,
           minHeight: cardHeightStyle,
           border: config.showBorder
-            ? `${config.borderWidth}px solid ${config.borderColor}`
+            ? `${config.borderWidth || 1}px solid ${config.borderColor || '#1e293b'}`
             : '1px solid #cbd5e1',
           backgroundColor: config.cardBackground,
           fontFamily:
@@ -405,9 +405,9 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
           </div>
         </div>
 
-        {/* Rodapé do Verso: NÃO PLASTIFICAR (Linha desnecessária eliminada, contorno uniforme e rente ao texto) */}
-        <div className="mt-0.5 pt-0.5 pb-0.5 flex flex-col items-center justify-center w-full shrink-0">
-          <span className="text-[9px] font-black text-center text-slate-950 tracking-wider uppercase leading-none whitespace-nowrap">
+        {/* Rodapé do Verso: NÃO PLASTIFICAR (Linha desnecessária eliminada, contorno uniforme de 1px e rente ao texto) */}
+        <div className="mt-0.5 pt-0.5 pb-0 flex flex-col items-center justify-center w-full shrink-0 border-0 outline-none">
+          <span className="text-[8.5px] font-black text-center text-slate-950 tracking-wider uppercase leading-none whitespace-nowrap select-none border-0 outline-none no-underline">
             NÃO PLASTIFICAR
           </span>
         </div>

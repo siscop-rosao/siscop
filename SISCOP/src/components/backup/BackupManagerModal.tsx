@@ -9,6 +9,8 @@ import appContextRaw from '../../context/AppContext.tsx?raw';
 import zipExporterRaw from '../../utils/zipExporter.ts?raw';
 import printableCardRaw from '../gda/PrintableCard.tsx?raw';
 import printSheetViewerModalRaw from '../gda/PrintSheetViewerModal.tsx?raw';
+import gidModuleRaw from '../gid/GidModule.tsx?raw';
+import gdaModuleRaw from '../gda/GdaModule.tsx?raw';
 import firestoreSyncRaw from '../../services/firestoreSync.ts?raw';
 import imageOptimizerRaw from '../../services/imageOptimizer.ts?raw';
 import {
@@ -187,6 +189,34 @@ export const BackupManagerModal: React.FC<BackupManagerModalProps> = ({ isOpen, 
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     setDownloadSuccessToast('Arquivo imageOptimizer.ts baixado! Basta arrastá-lo para dentro do GitHub em SISCOP/src/services/.');
+    setTimeout(() => setDownloadSuccessToast(null), 6000);
+  };
+
+  const handleDownloadGidModuleFile = () => {
+    const blob = new Blob([gidModuleRaw], { type: 'text/typescript;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'GidModule.tsx';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setDownloadSuccessToast('Arquivo GidModule.tsx baixado! Basta arrastá-lo para dentro do GitHub em SISCOP/src/components/gid/.');
+    setTimeout(() => setDownloadSuccessToast(null), 6000);
+  };
+
+  const handleDownloadGdaModuleFile = () => {
+    const blob = new Blob([gdaModuleRaw], { type: 'text/typescript;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'GdaModule.tsx';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setDownloadSuccessToast('Arquivo GdaModule.tsx baixado! Basta arrastá-lo para dentro do GitHub em SISCOP/src/components/gda/.');
     setTimeout(() => setDownloadSuccessToast(null), 6000);
   };
 
@@ -694,12 +724,22 @@ export const BackupManagerModal: React.FC<BackupManagerModalProps> = ({ isOpen, 
 
                     <button
                       type="button"
-                      onClick={handleDownloadImageOptimizerFile}
+                      onClick={handleDownloadGidModuleFile}
                       className="w-full py-2 px-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold flex items-center justify-between border border-slate-600 shadow-2xs transition-colors cursor-pointer"
-                      title="Salvar em SISCOP/src/services/imageOptimizer.ts"
+                      title="Salvar em SISCOP/src/components/gid/GidModule.tsx"
                     >
-                      <span className="truncate">imageOptimizer.ts</span>
-                      <Download className="w-3.5 h-3.5 text-amber-400 shrink-0 ml-1" />
+                      <span className="truncate">GidModule.tsx</span>
+                      <Download className="w-3.5 h-3.5 text-purple-400 shrink-0 ml-1" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDownloadGdaModuleFile}
+                      className="w-full py-2 px-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold flex items-center justify-between border border-slate-600 shadow-2xs transition-colors cursor-pointer"
+                      title="Salvar em SISCOP/src/components/gda/GdaModule.tsx"
+                    >
+                      <span className="truncate">GdaModule.tsx</span>
+                      <Download className="w-3.5 h-3.5 text-cyan-400 shrink-0 ml-1" />
                     </button>
                   </div>
                 </div>

@@ -757,7 +757,7 @@ export const GidModule: React.FC = () => {
           {addDependentToast && (
             <div className="bg-emerald-600 text-white px-6 py-2.5 flex items-center justify-between text-xs font-bold shadow-xs transition-all">
               <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-emerald-200 shrink-0" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-200 shrink-0" />
                 <span>{addDependentToast}</span>
               </div>
               <button
