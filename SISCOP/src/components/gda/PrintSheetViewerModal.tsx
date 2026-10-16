@@ -584,7 +584,7 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 text-slate-300 text-xs">
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <span className="font-medium text-slate-200">Margem de Segurança Ativa</span>
+            <span className="font-medium text-slate-200">Sem Corredor • Linha Compartilhada</span>
           </div>
 
           <div className="h-4 w-px bg-slate-600" />
@@ -629,41 +629,47 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
             minHeight: '678px',
           }}
         >
-          {/* 4 Colunas Verticais com corredor reduzido entre as carteirinhas e margem lateral protegida contra cortes de impressora */}
-          <div className="flex-1 flex items-center justify-between px-4 overflow-visible h-full w-full">
-            {slots.map((card, idx) => (
-              <div
-                key={idx}
-                className="relative flex flex-col items-center justify-center border-0 bg-white overflow-visible h-full w-[23.5%] shrink-0"
-                style={{ zIndex: 10 - idx }}
-              >
-                {card ? (
-                  <div className="w-full h-full flex items-center justify-center overflow-visible relative">
-                    <div
-                      style={{
-                        transform: 'rotate(-90deg) scale(0.85522)',
-                        transformOrigin: 'center center',
-                        width: `${cardTotalWidthMm}mm`,
-                        height: `${cardHeightMm}mm`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                        position: 'relative',
-                      }}
-                    >
-                      <PrintableCard
-                        card={card}
-                        config={printCardConfig}
-                        showFoldGuideline={true}
-                      />
+          {/* 4 Colunas Verticais sem corredor: carteirinhas unidas lado a lado com linha de contorno compartilhada */}
+          <div className="flex-1 flex items-center justify-center overflow-visible h-full w-full">
+            <div className="flex items-center justify-center overflow-visible">
+              {slots.map((card, idx) => (
+                <div
+                  key={idx}
+                  className="relative flex flex-col items-center justify-center border-0 bg-white overflow-visible h-full shrink-0"
+                  style={{
+                    width: '193.5px',
+                    marginLeft: idx > 0 ? '-1px' : '0',
+                    zIndex: 10 - idx,
+                  }}
+                >
+                  {card ? (
+                    <div className="w-full h-full flex items-center justify-center overflow-visible relative">
+                      <div
+                        style={{
+                          transform: 'rotate(-90deg) scale(0.85522)',
+                          transformOrigin: 'center center',
+                          width: `${cardTotalWidthMm}mm`,
+                          height: `${cardHeightMm}mm`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          position: 'relative',
+                        }}
+                      >
+                        <PrintableCard
+                          card={card}
+                          config={printCardConfig}
+                          showFoldGuideline={true}
+                        />
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="w-full h-full bg-white" />
-                )}
-              </div>
-            ))}
+                  ) : (
+                    <div className="w-full h-full bg-white" />
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -683,41 +689,47 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
 
             return (
               <div key={pgIdx} className="a4-print-page">
-                {/* 4 Colunas Verticais com Carteirinhas Reais: A4 Paisagem (297mm x 210mm) com margem de segurança expandida contra cortes de impressora */}
-                <div className="flex items-center justify-between h-[210mm] w-[297mm] px-[6.5mm] my-auto overflow-visible">
-                  {pageSlots.map((card, slotIdx) => (
-                    <div
-                      key={slotIdx}
-                      className="relative flex flex-col items-center justify-center border-0 bg-white overflow-visible h-full w-[69mm] shrink-0"
-                      style={{ zIndex: 10 - slotIdx }}
-                    >
-                      {card ? (
-                        <div className="w-full h-full flex items-center justify-center overflow-visible relative">
-                          <div
-                            style={{
-                              transform: 'rotate(-90deg) scale(0.96)',
-                              transformOrigin: 'center center',
-                              width: `${cardTotalWidthMm}mm`,
-                              height: `${cardHeightMm}mm`,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              flexShrink: 0,
-                              position: 'relative',
-                            }}
-                          >
-                            <PrintableCard
-                              card={card}
-                              config={printCardConfig}
-                              showFoldGuideline={true}
-                            />
+                {/* 4 Colunas Verticais sem corredor: carteirinhas unidas lado a lado com linha de contorno compartilhada */}
+                <div className="flex items-center justify-center h-[210mm] w-[297mm] my-auto overflow-visible">
+                  <div className="flex items-center justify-center overflow-visible">
+                    {pageSlots.map((card, slotIdx) => (
+                      <div
+                        key={slotIdx}
+                        className="relative flex flex-col items-center justify-center border-0 bg-white overflow-visible h-full shrink-0"
+                        style={{
+                          width: '67.9mm',
+                          marginLeft: slotIdx > 0 ? '-1px' : '0',
+                          zIndex: 10 - slotIdx,
+                        }}
+                      >
+                        {card ? (
+                          <div className="w-full h-full flex items-center justify-center overflow-visible relative">
+                            <div
+                              style={{
+                                transform: 'rotate(-90deg) scale(0.97)',
+                                transformOrigin: 'center center',
+                                width: `${cardTotalWidthMm}mm`,
+                                height: `${cardHeightMm}mm`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                                position: 'relative',
+                              }}
+                            >
+                              <PrintableCard
+                                card={card}
+                                config={printCardConfig}
+                                showFoldGuideline={true}
+                              />
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="w-full h-full bg-white" />
-                      )}
-                    </div>
-                  ))}
+                        ) : (
+                          <div className="w-full h-full bg-white" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             );
