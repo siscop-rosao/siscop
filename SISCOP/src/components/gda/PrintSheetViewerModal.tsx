@@ -631,38 +631,41 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
         >
           {/* 4 Colunas Verticais sem corredor: carteirinhas unidas lado a lado com linha de contorno compartilhada */}
           <div className="flex-1 flex items-center justify-center overflow-visible h-full w-full">
-            <div className="flex items-center justify-center overflow-visible">
+            <div
+              className="flex items-center justify-center overflow-visible"
+              style={{
+                transform: 'scale(0.85522)',
+                transformOrigin: 'center center',
+              }}
+            >
               {slots.map((card, idx) => (
                 <div
                   key={idx}
-                  className="relative flex flex-col items-center justify-center border-0 bg-white overflow-visible h-full shrink-0"
+                  className="relative flex items-center justify-center border-0 overflow-visible shrink-0"
                   style={{
-                    width: '193.5px',
+                    width: `${cardHeightMm}mm`,
+                    height: `${cardTotalWidthMm}mm`,
                     marginLeft: idx > 0 ? '-1px' : '0',
-                    zIndex: 10 - idx,
                   }}
                 >
                   {card ? (
-                    <div className="w-full h-full flex items-center justify-center overflow-visible relative">
-                      <div
-                        style={{
-                          transform: 'rotate(-90deg) scale(0.85522)',
-                          transformOrigin: 'center center',
-                          width: `${cardTotalWidthMm}mm`,
-                          height: `${cardHeightMm}mm`,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                          position: 'relative',
-                        }}
-                      >
-                        <PrintableCard
-                          card={card}
-                          config={printCardConfig}
-                          showFoldGuideline={true}
-                        />
-                      </div>
+                    <div
+                      style={{
+                        transform: 'rotate(-90deg)',
+                        transformOrigin: 'center center',
+                        width: `${cardTotalWidthMm}mm`,
+                        height: `${cardHeightMm}mm`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <PrintableCard
+                        card={card}
+                        config={printCardConfig}
+                        showFoldGuideline={true}
+                      />
                     </div>
                   ) : (
                     <div className="w-full h-full bg-white" />
@@ -691,38 +694,41 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
               <div key={pgIdx} className="a4-print-page">
                 {/* 4 Colunas Verticais sem corredor: carteirinhas unidas lado a lado com linha de contorno compartilhada */}
                 <div className="flex items-center justify-center h-[210mm] w-[297mm] my-auto overflow-visible">
-                  <div className="flex items-center justify-center overflow-visible">
+                  <div
+                    className="flex items-center justify-center overflow-visible"
+                    style={{
+                      transform: 'scale(0.97)',
+                      transformOrigin: 'center center',
+                    }}
+                  >
                     {pageSlots.map((card, slotIdx) => (
                       <div
                         key={slotIdx}
-                        className="relative flex flex-col items-center justify-center border-0 bg-white overflow-visible h-full shrink-0"
+                        className="relative flex items-center justify-center border-0 overflow-visible shrink-0"
                         style={{
-                          width: '67.9mm',
+                          width: `${cardHeightMm}mm`,
+                          height: `${cardTotalWidthMm}mm`,
                           marginLeft: slotIdx > 0 ? '-1px' : '0',
-                          zIndex: 10 - slotIdx,
                         }}
                       >
                         {card ? (
-                          <div className="w-full h-full flex items-center justify-center overflow-visible relative">
-                            <div
-                              style={{
-                                transform: 'rotate(-90deg) scale(0.97)',
-                                transformOrigin: 'center center',
-                                width: `${cardTotalWidthMm}mm`,
-                                height: `${cardHeightMm}mm`,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexShrink: 0,
-                                position: 'relative',
-                              }}
-                            >
-                              <PrintableCard
-                                card={card}
-                                config={printCardConfig}
-                                showFoldGuideline={true}
-                              />
-                            </div>
+                          <div
+                            style={{
+                              transform: 'rotate(-90deg)',
+                              transformOrigin: 'center center',
+                              width: `${cardTotalWidthMm}mm`,
+                              height: `${cardHeightMm}mm`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <PrintableCard
+                              card={card}
+                              config={printCardConfig}
+                              showFoldGuideline={true}
+                            />
                           </div>
                         ) : (
                           <div className="w-full h-full bg-white" />
