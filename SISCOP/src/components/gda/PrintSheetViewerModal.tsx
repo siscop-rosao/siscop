@@ -48,7 +48,9 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
   // Aproveitamento máximo da folha com margem de segurança de 3mm no topo/base na folha A4 (210mm)
   // e 3mm de espaçamento livre entre as carteirinhas, sem risco de cortes indesejados nas bordas de impressão.
   const targetWidthMm = Math.min(100, Math.max(70, layoutConfig.cardWidthMm || 100));
-  const targetHeightMm = Math.min(70, Math.max(45, layoutConfig.cardHeightMm || 70));
+  // Altura calibrada para 68.5mm (ganho de 6mm na folha A4 com redução da margem sobre o brasão),
+  // garantindo que a base da última carteirinha ("NÃO PLASTIFICAR") nunca seja cortada.
+  const targetHeightMm = Math.min(68.5, Math.max(45, (layoutConfig.cardHeightMm || 70) <= 70 ? 68.5 : layoutConfig.cardHeightMm - 1.5));
 
   const printCardConfig: CardLayoutConfig = {
     ...layoutConfig,
@@ -58,7 +60,7 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
   };
 
   const cardTotalWidthMm = printCardConfig.cardWidthMm * 2 + 4; // frente (100mm) + guia de dobra (4mm) + verso (100mm) = 204mm
-  const cardHeightMm = printCardConfig.cardHeightMm; // 70mm
+  const cardHeightMm = printCardConfig.cardHeightMm; // 68.5mm
 
   const [printMode, setPrintMode] = useState<PrintMode>(
     initialMode || (familyMembers.length > 1 ? 'FAMILY' : 'SINGLE_4X')

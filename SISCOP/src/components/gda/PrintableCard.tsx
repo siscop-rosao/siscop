@@ -87,7 +87,7 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
       {renderOnly !== 'back' && (
         <div
           id={`card-front-${card.id}`}
-          className="relative bg-white text-slate-900 overflow-hidden box-border pt-2.5 px-3 pb-1.5 flex flex-col justify-between print:shadow-none"
+          className="relative bg-white text-slate-900 overflow-hidden box-border pt-1 px-3 pb-1.5 flex flex-col justify-between print:shadow-none"
           style={{
             width: cardWidthStyle,
             height: cardHeightStyle,
