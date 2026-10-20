@@ -473,7 +473,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({ isOpen, onClose }) => {
                             className="w-10 h-10 object-contain drop-shadow-sm"
                           />
                         ) : (
-                          <BrasaoPousoAlegre className="w-10 h-10 drop-shadow-sm" />
+                          <BrasaoPousoAlegre size={40} className="w-10 h-10 drop-shadow-sm" />
                         )}
                         <div>
                           <div className="text-xs font-black tracking-wide text-white uppercase">
@@ -543,7 +543,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({ isOpen, onClose }) => {
                             className="max-h-full max-w-full object-contain"
                           />
                         ) : (
-                          <BrasaoPousoAlegre className="w-24 h-24" />
+                          <BrasaoPousoAlegre size={96} className="w-24 h-24" />
                         )}
                       </div>
                     </div>
