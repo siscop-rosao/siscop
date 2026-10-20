@@ -64,6 +64,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [modulosMenuOpen, setModulosMenuOpen] = useState(false);
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const [navbarLogoError, setNavbarLogoError] = useState(false);
   const [now, setNow] = useState(new Date());
 
   // Real-time clock update every second
@@ -103,10 +104,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           onClick={() => setCurrentView('DASHBOARD')}
           className="flex items-center gap-3 text-left group focus:outline-none shrink-0"
         >
-          {platformSettings.navbarLogoUrl ? (
+          {platformSettings.navbarLogoUrl && !navbarLogoError ? (
             <img
               src={platformSettings.navbarLogoUrl}
               alt="Brasão Pouso Alegre"
+              onError={() => setNavbarLogoError(true)}
               className="w-12 h-12 object-contain rounded-xs drop-shadow-md group-hover:scale-105 transition-transform"
             />
           ) : (
