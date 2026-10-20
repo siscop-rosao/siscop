@@ -43,6 +43,11 @@ import firebaseRaw from '../services/firebase.ts?raw';
 import imageOptimizerRaw from '../services/imageOptimizer.ts?raw';
 import backupManagerModalRaw from '../components/backup/BackupManagerModal.tsx?raw';
 import navbarRaw from '../components/navigation/Navbar.tsx?raw';
+import brasaoPousoAlegreRaw from '../components/common/BrasaoPousoAlegre.tsx?raw';
+import logoPrefeituraBannerRaw from '../components/common/LogoPrefeituraBanner.tsx?raw';
+import dashboardRaw from '../components/dashboard/Dashboard.tsx?raw';
+import setupModalRaw from '../components/setup/SetupModal.tsx?raw';
+import loginModalRaw from '../components/auth/LoginModal.tsx?raw';
 import {
   syncCardToFirestore,
   syncAllCardsToFirestore,
@@ -1669,6 +1674,11 @@ npm run build
       zip.file('src/index.css', indexCssRaw);
       zip.file('src/components/backup/BackupManagerModal.tsx', backupManagerModalRaw);
       zip.file('src/components/navigation/Navbar.tsx', navbarRaw);
+      zip.file('src/components/common/BrasaoPousoAlegre.tsx', brasaoPousoAlegreRaw);
+      zip.file('src/components/common/LogoPrefeituraBanner.tsx', logoPrefeituraBannerRaw);
+      zip.file('src/components/dashboard/Dashboard.tsx', dashboardRaw);
+      zip.file('src/components/setup/SetupModal.tsx', setupModalRaw);
+      zip.file('src/components/auth/LoginModal.tsx', loginModalRaw);
       zip.file('src/services/firestoreSync.ts', firestoreSyncRaw);
       zip.file('src/services/firebase.ts', firebaseRaw);
       zip.file('src/services/imageOptimizer.ts', imageOptimizerRaw);
