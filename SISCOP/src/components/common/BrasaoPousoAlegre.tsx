@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 
 interface BrasaoProps {
   className?: string;
@@ -11,6 +11,9 @@ export const BrasaoPousoAlegre: React.FC<BrasaoProps> = ({
   size = 64,
   monochrome = false,
 }) => {
+  const rawId = useId();
+  const clipId = `shieldClip_${rawId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+
   return (
     <svg
       width={size}
@@ -18,11 +21,18 @@ export const BrasaoPousoAlegre: React.FC<BrasaoProps> = ({
       viewBox="0 0 160 160"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={`select-none ${className}`}
+      className={`select-none shrink-0 ${className}`}
       aria-label="Brasão de Pouso Alegre - MG"
     >
+      <defs>
+        {/* Shield partition (Lower hills/river section) with unique instance ID */}
+        <clipPath id={clipId}>
+          <path d="M 42 38 L 118 38 C 118 84 104 116 80 128 C 56 116 42 84 42 38 Z" />
+        </clipPath>
+      </defs>
+
       {/* Mural Crown (Coroa Mural) */}
-      <g id="coroa-mural">
+      <g>
         <path
           d="M 40 38 L 48 20 L 58 28 L 68 18 L 80 26 L 92 18 L 102 28 L 112 20 L 120 38 Z"
           fill={monochrome ? '#1e293b' : '#EAB308'}
@@ -38,7 +48,7 @@ export const BrasaoPousoAlegre: React.FC<BrasaoProps> = ({
       </g>
 
       {/* Main Shield Outline */}
-      <g id="escudo">
+      <g>
         <path
           d="M 42 38 L 118 38 C 118 84 104 116 80 128 C 56 116 42 84 42 38 Z"
           fill={monochrome ? '#ffffff' : '#1E40AF'}
@@ -47,12 +57,7 @@ export const BrasaoPousoAlegre: React.FC<BrasaoProps> = ({
           strokeLinejoin="round"
         />
 
-        {/* Shield partition (Lower hills/river section) */}
-        <clipPath id="shieldClip">
-          <path d="M 42 38 L 118 38 C 118 84 104 116 80 128 C 56 116 42 84 42 38 Z" />
-        </clipPath>
-
-        <g clipPath="url(#shieldClip)">
+        <g clipPath={`url(#${clipId})`}>
           {/* Lower field: green hills / nature */}
           <path
             d="M 38 78 Q 60 70 80 78 Q 100 86 122 76 L 122 135 L 38 135 Z"
@@ -65,7 +70,7 @@ export const BrasaoPousoAlegre: React.FC<BrasaoProps> = ({
           />
 
           {/* Golden cross / Religious heritage in upper canton */}
-          <g id="cruz-simbolo">
+          <g>
             <rect
               x="77"
               y="44"
@@ -95,7 +100,7 @@ export const BrasaoPousoAlegre: React.FC<BrasaoProps> = ({
       </g>
 
       {/* Laurel & Coffee Branches on sides */}
-      <g id="ramos" stroke={monochrome ? '#475569' : '#166534'} strokeWidth="2" strokeLinecap="round">
+      <g stroke={monochrome ? '#475569' : '#166534'} strokeWidth="2" strokeLinecap="round">
         {/* Left branch */}
         <path d="M 38 48 C 24 64 26 94 48 116" fill="none" />
         <ellipse cx="28" cy="60" rx="3.5" ry="6" transform="rotate(-30 28 60)" fill={monochrome ? '#94a3b8' : '#22C55E'} />
@@ -110,7 +115,7 @@ export const BrasaoPousoAlegre: React.FC<BrasaoProps> = ({
       </g>
 
       {/* Ribbon Scroll at bottom (Listel) */}
-      <g id="listel">
+      <g>
         <path
           d="M 28 132 L 44 124 L 80 134 L 116 124 L 132 132 L 126 142 L 114 136 L 80 146 L 46 136 L 34 142 Z"
           fill={monochrome ? '#f1f5f9' : '#EF4444'}
