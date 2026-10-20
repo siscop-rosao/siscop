@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { BrasaoPousoAlegre } from '../common/BrasaoPousoAlegre';
+import { LogoPrefeituraBanner } from '../common/LogoPrefeituraBanner';
 import {
   FileBadge,
   Layers,
@@ -35,6 +36,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenLogs }) => {
   } = useApp();
 
   const [planTab, setPlanTab] = useState<'TODOS' | 'FAMILIAR' | 'INDIVIDUAL' | 'ESPECIAL'>('TODOS');
+  const [bannerError, setBannerError] = useState<boolean>(false);
 
   // Stats calculation
   const totalCards = cards.length;
@@ -77,16 +79,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenLogs }) => {
         <div className="flex flex-col items-center justify-center text-center py-2 sm:py-4 border-0 outline-none shadow-none">
           {/* Imagem Centralizada de Grande Resolução (sem linha de contorno) */}
           <div className="flex items-center justify-center mb-3 max-w-3xl w-full border-0 outline-none">
-            {platformSettings.dashboardBannerUrl ? (
+            {platformSettings.dashboardBannerUrl && !bannerError ? (
               <img
                 src={platformSettings.dashboardBannerUrl}
                 alt="SISCOP - Painel Central da Praça de Esportes"
+                onError={() => setBannerError(true)}
                 className="max-h-64 sm:max-h-72 w-auto object-contain border-0 outline-none shadow-none"
               />
             ) : (
-              <div className="py-2 px-8 flex flex-col items-center justify-center border-0 outline-none">
-                <BrasaoPousoAlegre size={130} />
-              </div>
+              <LogoPrefeituraBanner brasaoSize={120} />
             )}
           </div>
 
