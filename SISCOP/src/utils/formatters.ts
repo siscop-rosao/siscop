@@ -101,3 +101,46 @@ export const formatCepNumber = (val: string): string => {
   }
   return val.trim();
 };
+
+/**
+ * Verifica se um cadastro possui vínculo com outro plano já existente
+ * (através do registro no campo "Vinculação Identificativa").
+ */
+export const hasVinculo = (card: { linkedPlanNumbers?: string[] } | null | undefined): boolean => {
+  if (!card || !card.linkedPlanNumbers || !Array.isArray(card.linkedPlanNumbers)) return false;
+  return card.linkedPlanNumbers.some((p) => typeof p === 'string' && p.trim().length > 0);
+};
+
+/**
+ * Extrai o número base do plano para exibição e ordenação (ex: 4550, 4882, ou 4385)
+ */
+export const getDisplayPlanNumber = (controlNumber: string): string => {
+  if (!controlNumber) return '----';
+  const trimmed = controlNumber.trim();
+
+  // Se contiver hífen (ex: 4882-01 ou 4882-02), o número do plano é o prefixo
+  if (trimmed.includes('-')) {
+    const prefix = trimmed.split('-')[0].trim();
+    const digits = prefix.replace(/\D/g, '');
+    if (digits.length > 0) {
+      return digits;
+    }
+  }
+
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length > 0) {
+    return digits;
+  }
+  return trimmed;
+};
+
+/**
+ * Chave numérica para ordenação decrescente (o maior número/mais recente no topo da lista)
+ */
+export const getNumericSortKey = (card: { controlNumber?: string; createdAt?: string } | null | undefined): number => {
+  if (!card || !card.controlNumber) return 0;
+  const disp = getDisplayPlanNumber(card.controlNumber);
+  const parsed = parseInt(disp, 10);
+  if (!isNaN(parsed) && parsed > 0) return parsed;
+  return 0;
+};
