@@ -8,7 +8,7 @@ import { optimizeImageBase64 } from '../../services/imageOptimizer';
 import { GdaReportsView } from './GdaReportsView';
 import { GdaLatestRecordsView } from './GdaLatestRecordsView';
 import { BrasaoPousoAlegre } from '../common/BrasaoPousoAlegre';
-import { formatBirthDate } from '../../utils/formatters';
+import { formatBirthDate, formatCpfNumber, getNumericSortKey } from '../../utils/formatters';
 import {
   Printer,
   Sliders,
@@ -36,6 +36,7 @@ import {
   Hash,
   Calendar,
   Layers,
+  ChevronDown,
 } from 'lucide-react';
 
 export const GdaModule: React.FC = () => {
@@ -113,8 +114,30 @@ export const GdaModule: React.FC = () => {
     birthDate: '',
     rgOrCpf: '',
     phone: '',
+    kinship: '',
+    docJud: false,
   });
+  const [depDocTypeGda, setDepDocTypeGda] = useState<'CPF' | 'RG'>('CPF');
   const gdaDepDateInputRef = useRef<HTMLInputElement>(null);
+
+  // Menus Dropdown da Barra de Ferramentas (Visual e Impressão em Lote)
+  const [isVisualMenuOpen, setIsVisualMenuOpen] = useState(false);
+  const [isBatchMenuOpen, setIsBatchMenuOpen] = useState(false);
+  const visualMenuRef = useRef<HTMLDivElement>(null);
+  const batchMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (visualMenuRef.current && !visualMenuRef.current.contains(event.target as Node)) {
+        setIsVisualMenuOpen(false);
+      }
+      if (batchMenuRef.current && !batchMenuRef.current.contains(event.target as Node)) {
+        setIsBatchMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Form edit state
   const [formData, setFormData] = useState<Partial<CardData>>({});
@@ -296,6 +319,16 @@ export const GdaModule: React.FC = () => {
     setShowPrintSheetModal(true);
   };
 
+  // Limpar todas as marcações de Impressão em Lote
+  const handleClearBatchSelections = () => {
+    cards.forEach((c) => {
+      if (c.batchPrintSelected) {
+        updateCard(c.id, { batchPrintSelected: false });
+      }
+    });
+    setFormData((prev) => ({ ...prev, batchPrintSelected: false }));
+  };
+
   // Create new card
   const handleCreateNew = () => {
     const newCard = addCard({
@@ -310,7 +343,8 @@ export const GdaModule: React.FC = () => {
   // Add dependent to current family via modal
   const handleAddDependent = () => {
     if (!titularCard) return;
-    setDepFormDataGda({ name: '', birthDate: '', rgOrCpf: '', phone: '' });
+    setDepFormDataGda({ name: '', birthDate: '', rgOrCpf: '', phone: '', kinship: '', docJud: false });
+    setDepDocTypeGda('CPF');
     setShowAddDepModalGda(true);
   };
 
@@ -327,16 +361,24 @@ export const GdaModule: React.FC = () => {
     }
 
     try {
+      const formattedDoc =
+        depDocTypeGda === 'CPF' && depFormDataGda.rgOrCpf
+          ? formatCpfNumber(depFormDataGda.rgOrCpf)
+          : depFormDataGda.rgOrCpf;
+
       const dep = addFamilyMember(titularCard.id, {
         name: nameClean,
         birthDate: depFormDataGda.birthDate,
-        rgOrCpf: depFormDataGda.rgOrCpf,
+        rgOrCpf: formattedDoc,
         phone: depFormDataGda.phone || titularCard.phone,
+        kinship: depFormDataGda.kinship || undefined,
+        docJud: !!depFormDataGda.docJud,
         physicalArchiveLocation: titularCard.physicalArchiveLocation || '',
       });
       setActiveCardId(dep.id);
       setShowAddDepModalGda(false);
-      setDepFormDataGda({ name: '', birthDate: '', rgOrCpf: '', phone: '' });
+      setDepFormDataGda({ name: '', birthDate: '', rgOrCpf: '', phone: '', kinship: '', docJud: false });
+      setDepDocTypeGda('CPF');
       setSaveToast(true);
       setTimeout(() => setSaveToast(false), 3000);
     } catch (err: any) {
@@ -431,6 +473,7 @@ export const GdaModule: React.FC = () => {
                   <optgroup label="👨‍👩‍👦 PLANO FAMILIAR (Titulares & Dependentes)">
                     {cards
                       .filter((c) => c.category === 'PLANO_FAMILIAR' && c.isTitular)
+                      .sort((a, b) => getNumericSortKey(b) - getNumericSortKey(a))
                       .flatMap((titular) => {
                         const familyDeps = cards.filter(
                           (c) => c.category === 'PLANO_FAMILIAR' && c.familyHeadId === titular.id && c.id !== titular.id
@@ -454,6 +497,7 @@ export const GdaModule: React.FC = () => {
                   <optgroup label="👤 PLANO INDIVIDUAL">
                     {cards
                       .filter((c) => c.category === 'PLANO_INDIVIDUAL')
+                      .sort((a, b) => getNumericSortKey(b) - getNumericSortKey(a))
                       .map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.controlNumber} - {c.name}
@@ -467,6 +511,7 @@ export const GdaModule: React.FC = () => {
                   <optgroup label="♿ PLANO ESPECIAL (PCD / Isento)">
                     {cards
                       .filter((c) => c.category === 'PLANO_ESPECIAL')
+                      .sort((a, b) => getNumericSortKey(b) - getNumericSortKey(a))
                       .map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.controlNumber} - {c.name} ({c.specialCondition || 'Especial'})
@@ -480,6 +525,7 @@ export const GdaModule: React.FC = () => {
                   <optgroup label="🏛️ PREFEITURA MUNICIPAL">
                     {cards
                       .filter((c) => c.category === 'PREFEITURA')
+                      .sort((a, b) => getNumericSortKey(b) - getNumericSortKey(a))
                       .map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.controlNumber} - {c.name}
@@ -493,6 +539,7 @@ export const GdaModule: React.FC = () => {
                   <optgroup label="🚒 CORPO DE BOMBEIROS">
                     {cards
                       .filter((c) => c.category === 'BOMBEIROS')
+                      .sort((a, b) => getNumericSortKey(b) - getNumericSortKey(a))
                       .map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.controlNumber} - {c.name}
@@ -511,44 +558,124 @@ export const GdaModule: React.FC = () => {
               <span>Nova</span>
             </button>
 
-            {/* Fold Simulator Button */}
-            <button
-              onClick={() => setShowFoldModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold transition-colors shadow-xs cursor-pointer"
-              title="Simular dobra para conferir frente e verso"
-            >
-              <RotateCw className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Simulador 3D de Dobra</span>
-            </button>
-
-            {/* Layout Settings Toggle */}
-            <button
-              onClick={() => setShowConfigDrawer(!showConfigDrawer)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
-                showConfigDrawer
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-              }`}
-            >
-              <Sliders className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Personalizar Layout</span>
-            </button>
-
-            {/* Impressão em Lote Button */}
-            {cards.some((c) => c.batchPrintSelected) && (
+            {/* Menu Dropdown Visual (Simulador 3D de Dobra e Personalizar Layout) */}
+            <div className="relative" ref={visualMenuRef}>
               <button
                 type="button"
                 onClick={() => {
-                  setPrintSheetInitialMode('BATCH_INDIVIDUAL');
-                  setShowPrintSheetModal(true);
+                  setIsVisualMenuOpen((prev) => !prev);
+                  setIsBatchMenuOpen(false);
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
-                title="Visualizar e imprimir todas as carteirinhas individuais marcadas para impressão em lote (4 por folha A4)"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                  showConfigDrawer || isVisualMenuOpen
+                    ? 'bg-slate-800 text-white border-slate-800'
+                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                }`}
+                title="Visual"
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                <span>Visual</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isVisualMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isVisualMenuOpen && (
+                <div className="absolute left-0 mt-1 w-52 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsVisualMenuOpen(false);
+                      setShowFoldModal(true);
+                    }}
+                    className="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-100 transition-colors text-left font-medium cursor-pointer"
+                    title="Simular dobra para conferir frente e verso"
+                  >
+                    <RotateCw className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Simulador 3D de Dobra</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsVisualMenuOpen(false);
+                      setShowConfigDrawer(!showConfigDrawer);
+                    }}
+                    className="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-100 transition-colors text-left font-medium cursor-pointer"
+                  >
+                    <Sliders className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Personalizar Layout</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Menu Dropdown Impressão em Lote (Executar IL e Limpar IL) */}
+            <div className="relative" ref={batchMenuRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsBatchMenuOpen((prev) => !prev);
+                  setIsVisualMenuOpen(false);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                  cards.some((c) => c.batchPrintSelected)
+                    ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700 shadow-xs'
+                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                }`}
+                title="Impressão em Lote"
               >
                 <Layers className="w-3.5 h-3.5" />
-                <span>Impressão em Lote ({cards.filter((c) => c.batchPrintSelected).length})</span>
+                <span>Impressão em Lote</span>
+                {cards.filter((c) => c.batchPrintSelected).length > 0 && (
+                  <span className="px-1.5 py-0.2 bg-white text-blue-700 rounded-full font-bold text-[10px]">
+                    {cards.filter((c) => c.batchPrintSelected).length}
+                  </span>
+                )}
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isBatchMenuOpen ? 'rotate-180' : ''}`} />
               </button>
-            )}
+
+              {isBatchMenuOpen && (
+                <div className="absolute left-0 mt-1 w-60 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
+                  {/* Botão Executar IL */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsBatchMenuOpen(false);
+                      setPrintSheetInitialMode('BATCH_INDIVIDUAL');
+                      setShowPrintSheetModal(true);
+                    }}
+                    className="w-full flex items-center justify-between px-3.5 py-2 text-xs text-slate-800 hover:bg-blue-50 transition-colors text-left font-semibold cursor-pointer"
+                    title="Executar Impressão em Lote"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Layers className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Executar IL</span>
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-blue-100 text-blue-800 font-bold">
+                      {cards.filter((c) => c.batchPrintSelected).length} selecionadas
+                    </span>
+                  </button>
+
+                  {/* Botão Limpar IL */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsBatchMenuOpen(false);
+                      handleClearBatchSelections();
+                    }}
+                    disabled={!cards.some((c) => c.batchPrintSelected)}
+                    className={`w-full flex items-center gap-2 px-3.5 py-2 text-xs text-left font-semibold transition-colors ${
+                      cards.some((c) => c.batchPrintSelected)
+                        ? 'text-rose-600 hover:bg-rose-50 cursor-pointer'
+                        : 'text-slate-300 cursor-not-allowed'
+                    }`}
+                    title="Retirar a marcação geral de Impressão em Lote"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Limpar IL</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Visualizar Impressão */}
             <button
@@ -1239,6 +1366,74 @@ export const GdaModule: React.FC = () => {
                   />
                 </div>
 
+                {/* ================= NATUREZA DE VÍNCULO (CHECKBOXES) ================= */}
+                <div className="bg-slate-50 border border-slate-300 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-slate-800 text-xs">
+                      Natureza de Vínculo:
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-semibold bg-white border border-slate-200 px-1.5 py-0.5 rounded">
+                      {depFormDataGda.docJud ? 'DOC JUD ativo (+1 vínculo admitido)' : 'Marcação única ou com DOC JUD'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 pt-0.5">
+                    {(['Esposa', 'Filho', 'Irmão', 'Sobrinho', 'Neto'] as const).map((kinshipOpt) => {
+                      const isChecked = depFormDataGda.kinship === kinshipOpt;
+                      return (
+                        <label
+                          key={kinshipOpt}
+                          className={`flex items-center gap-1.5 p-1.5 rounded-lg border text-xs cursor-pointer select-none transition-all ${
+                            isChecked
+                              ? 'bg-indigo-100 border-indigo-400 text-indigo-950 font-bold shadow-2xs'
+                              : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              setDepFormDataGda((prev) => ({
+                                ...prev,
+                                kinship: prev.kinship === kinshipOpt ? '' : kinshipOpt,
+                              }));
+                            }}
+                            className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                          />
+                          <span className="truncate">{kinshipOpt}</span>
+                        </label>
+                      );
+                    })}
+
+                    {/* Checkbox DOC JUD */}
+                    <label
+                      className={`flex items-center gap-1.5 p-1.5 rounded-lg border text-xs cursor-pointer select-none transition-all ${
+                        depFormDataGda.docJud
+                          ? 'bg-amber-100 border-amber-400 text-amber-950 font-bold shadow-2xs'
+                          : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={depFormDataGda.docJud}
+                        onChange={(e) => {
+                          setDepFormDataGda((prev) => ({
+                            ...prev,
+                            docJud: e.target.checked,
+                          }));
+                        }}
+                        className="w-3.5 h-3.5 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                      />
+                      <span className="font-bold flex items-center gap-1">
+                        DOC JUD
+                        <span className="w-3.5 h-3.5 rounded-full bg-yellow-400 text-black font-black text-[9px] inline-flex items-center justify-center">
+                          J
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
                     Data de Nascimento:
@@ -1279,16 +1474,61 @@ export const GdaModule: React.FC = () => {
                   </div>
                 </div>
 
+                {/* ================= CAMPO: CPF / RG (COM CHECKBOXES E AUTO-FORMATAÇÃO NO ONBLUR) ================= */}
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    RG ou CPF (Opcional):
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-semibold text-slate-700">
+                      {depDocTypeGda === 'CPF' ? 'CPF (Opcional):' : 'RG (Opcional):'}
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-1 cursor-pointer text-slate-700 hover:text-indigo-600 select-none text-[11px]">
+                        <input
+                          type="checkbox"
+                          checked={depDocTypeGda === 'CPF'}
+                          onChange={() => {
+                            setDepDocTypeGda('CPF');
+                            if (depFormDataGda.rgOrCpf) {
+                              setDepFormDataGda((prev) => ({
+                                ...prev,
+                                rgOrCpf: formatCpfNumber(prev.rgOrCpf),
+                              }));
+                            }
+                          }}
+                          className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        />
+                        <span className={depDocTypeGda === 'CPF' ? 'font-bold text-indigo-700' : 'font-medium'}>
+                          CPF
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-1 cursor-pointer text-slate-700 hover:text-indigo-600 select-none text-[11px]">
+                        <input
+                          type="checkbox"
+                          checked={depDocTypeGda === 'RG'}
+                          onChange={() => setDepDocTypeGda('RG')}
+                          className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        />
+                        <span className={depDocTypeGda === 'RG' ? 'font-bold text-indigo-700' : 'font-medium'}>
+                          RG
+                        </span>
+                      </label>
+                    </div>
+                  </div>
                   <input
                     type="text"
                     value={depFormDataGda.rgOrCpf}
                     onChange={(e) => setDepFormDataGda({ ...depFormDataGda, rgOrCpf: e.target.value })}
-                    placeholder="Ex: 000.000.000-00"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    onBlur={() => {
+                      if (depDocTypeGda === 'CPF') {
+                        const formatted = formatCpfNumber(depFormDataGda.rgOrCpf);
+                        setDepFormDataGda((prev) => ({ ...prev, rgOrCpf: formatted }));
+                      }
+                    }}
+                    placeholder={
+                      depDocTypeGda === 'CPF'
+                        ? 'Digite os 11 números do CPF (ex: 12345678923 -> 123.456.789-23)'
+                        : 'Número do RG (digitação livre, ex: MG-12.345.678)'
+                    }
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs"
                   />
                 </div>
 
