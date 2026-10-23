@@ -5,7 +5,7 @@ import { RichTextEditor } from '../common/RichTextEditor';
 import { AnnualChurrasqueiraCalendar } from './AnnualChurrasqueiraCalendar';
 import { FichaCadastralModal } from './FichaCadastralModal';
 import { VinculosReportModal } from './VinculosReportModal';
-import { formatBirthDate, formatPhoneNumber, formatCpfNumber, formatCepNumber } from '../../utils/formatters';
+import { formatBirthDate, formatPhoneNumber, formatCpfNumber, formatCepNumber, hasVinculo, getNumericSortKey } from '../../utils/formatters';
 import {
   Users,
   Flame,
@@ -174,7 +174,10 @@ export const GidModule: React.FC = () => {
     rgOrCpf: '',
     phone: '',
     notesHtml: '',
+    kinship: '',
+    docJud: false,
   });
+  const [depDocType, setDepDocType] = useState<'CPF' | 'RG'>('CPF');
   const depDateInputRef = useRef<HTMLInputElement>(null);
 
   // Controle de expansão/retração dos membros dependentes por titular do plano familiar (por padrão RETRAÍDAS)
@@ -214,9 +217,9 @@ export const GidModule: React.FC = () => {
     status: 'CONFIRMADA',
   });
 
-  // Filter cards by subTab and search
+  // Filter cards by subTab and search (sempre ordenados do maior para o menor número de plano)
   const filteredCards = useMemo(() => {
-    return cards.filter((c) => {
+    const list = cards.filter((c) => {
       if (c.category !== gidSubTab) return false;
       if (!searchTerm) return true;
       const term = searchTerm.toLowerCase();
@@ -228,41 +231,58 @@ export const GidModule: React.FC = () => {
         (c.notesHtml && c.notesHtml.toLowerCase().includes(term))
       );
     });
+
+    return list.sort((a, b) => {
+      const numA = getNumericSortKey(a);
+      const numB = getNumericSortKey(b);
+      if (numB !== numA) return numB - numA;
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    });
   }, [cards, gidSubTab, searchTerm]);
 
-  // In Family Plan, group by titular (including titulars whose dependents match the search)
+  // In Family Plan, group by titular (sempre ordenados do maior para o menor número de plano)
   const titularsInSubTab = useMemo(() => {
+    let list: CardData[] = [];
     if (gidSubTab !== 'PLANO_FAMILIAR') {
-      return filteredCards.filter((c) => c.isTitular);
+      list = filteredCards.filter((c) => c.isTitular);
+    } else {
+      const allFamCards = cards.filter((c) => c.category === 'PLANO_FAMILIAR');
+      const allTitulars = allFamCards.filter((c) => c.isTitular);
+
+      if (!searchTerm) {
+        list = allTitulars;
+      } else {
+        const term = searchTerm.toLowerCase();
+        list = allTitulars.filter((titular) => {
+          // 1. O próprio titular combina com a busca
+          const titularMatches =
+            titular.name.toLowerCase().includes(term) ||
+            titular.controlNumber.toLowerCase().includes(term) ||
+            (titular.phone && titular.phone.includes(term)) ||
+            (titular.notesHtml && titular.notesHtml.toLowerCase().includes(term));
+
+          if (titularMatches) return true;
+
+          // 2. Ou algum de seus dependentes combina com a busca
+          const hasMatchingDependent = allFamCards.some(
+            (c) =>
+              c.familyHeadId === titular.id &&
+              c.id !== titular.id &&
+              (c.name.toLowerCase().includes(term) ||
+                c.controlNumber.toLowerCase().includes(term) ||
+                (c.notesHtml && c.notesHtml.toLowerCase().includes(term)))
+          );
+
+          return hasMatchingDependent;
+        });
+      }
     }
 
-    const allFamCards = cards.filter((c) => c.category === 'PLANO_FAMILIAR');
-    const allTitulars = allFamCards.filter((c) => c.isTitular);
-
-    if (!searchTerm) return allTitulars;
-
-    const term = searchTerm.toLowerCase();
-    return allTitulars.filter((titular) => {
-      // 1. O próprio titular combina com a busca
-      const titularMatches =
-        titular.name.toLowerCase().includes(term) ||
-        titular.controlNumber.toLowerCase().includes(term) ||
-        (titular.phone && titular.phone.includes(term)) ||
-        (titular.notesHtml && titular.notesHtml.toLowerCase().includes(term));
-
-      if (titularMatches) return true;
-
-      // 2. Ou algum de seus dependentes combina com a busca
-      const hasMatchingDependent = allFamCards.some(
-        (c) =>
-          c.familyHeadId === titular.id &&
-          c.id !== titular.id &&
-          (c.name.toLowerCase().includes(term) ||
-            c.controlNumber.toLowerCase().includes(term) ||
-            (c.notesHtml && c.notesHtml.toLowerCase().includes(term)))
-      );
-
-      return hasMatchingDependent;
+    return list.sort((a, b) => {
+      const numA = getNumericSortKey(a);
+      const numB = getNumericSortKey(b);
+      if (numB !== numA) return numB - numA;
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
     });
   }, [cards, gidSubTab, searchTerm, filteredCards]);
 
@@ -375,12 +395,19 @@ export const GidModule: React.FC = () => {
     }
 
     try {
+      const formattedDoc =
+        depDocType === 'CPF' && dependentFormData.rgOrCpf
+          ? formatCpfNumber(dependentFormData.rgOrCpf)
+          : dependentFormData.rgOrCpf;
+
       const created = addFamilyMember(targetTitular.id, {
         name: nameClean,
         birthDate: dependentFormData.birthDate,
-        rgOrCpf: dependentFormData.rgOrCpf,
+        rgOrCpf: formattedDoc,
         phone: dependentFormData.phone || targetTitular.phone,
         notesHtml: dependentFormData.notesHtml,
+        kinship: dependentFormData.kinship || undefined,
+        docJud: !!dependentFormData.docJud,
         physicalArchiveLocation: targetTitular.physicalArchiveLocation || '',
       });
 
@@ -403,7 +430,10 @@ export const GidModule: React.FC = () => {
         rgOrCpf: '',
         phone: '',
         notesHtml: '',
+        kinship: '',
+        docJud: false,
       });
+      setDepDocType('CPF');
     } catch (err: any) {
       console.error('Falha ao adicionar dependente:', err);
       alert('Não foi possível gravar o dependente: ' + (err?.message || 'Erro desconhecido.'));
@@ -680,11 +710,15 @@ export const GidModule: React.FC = () => {
 
               <button
                 onClick={() => {
-                  setVinculosTargetAssociate(filteredCards[0] || cards[0] || null);
+                  const firstWithVinculo =
+                    filteredCards.find((c) => hasVinculo(c)) ||
+                    cards.find((c) => c.category === gidSubTab && hasVinculo(c)) ||
+                    null;
+                  setVinculosTargetAssociate(firstWithVinculo);
                   setShowVinculosModal(true);
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
-                title="Emitir Relatório de Vínculos Existentes e Círculos Familiares da Praça de Esportes"
+                title="Emitir Relatório de Vínculos Existentes da Categoria Selecionada"
               >
                 <Users className="w-3.5 h-3.5" />
                 <span>Relatório de Vínculos</span>
@@ -859,6 +893,30 @@ export const GidModule: React.FC = () => {
                               </td>
                               <td className="py-3 px-4 text-right">
                                 <div className="flex items-center justify-end gap-1.5">
+                                  {/* Ícone [V]: Vínculo com outro plano existente */}
+                                  {hasVinculo(titular) && (
+                                    <span
+                                      className="w-5 h-5 rounded-full bg-orange-500 text-black font-extrabold text-[10px] flex items-center justify-center shrink-0 shadow-2xs select-none"
+                                      title={
+                                        titular.linkedPlanNumbers?.some((p) => p && p.trim())
+                                          ? `Possui Vínculo com plano(s): ${titular.linkedPlanNumbers.filter((p) => p && p.trim()).join(', ')}`
+                                          : 'Possui Vínculo com Plano Existente'
+                                      }
+                                    >
+                                      V
+                                    </span>
+                                  )}
+
+                                  {/* Ícone [J]: DOC JUD */}
+                                  {titular.docJud && (
+                                    <span
+                                      className="w-5 h-5 rounded-full bg-yellow-400 text-black font-extrabold text-[10px] flex items-center justify-center shrink-0 shadow-2xs select-none"
+                                      title="Possui Vínculo Judicial (DOC JUD)"
+                                    >
+                                      J
+                                    </span>
+                                  )}
+
                                   {/* Ícone do Olho: Abre Ficha Cadastral em modo Visualização */}
                                   <button
                                     onClick={() => handleOpenFicha(titular, 'VIEW')}
@@ -945,7 +1003,13 @@ export const GidModule: React.FC = () => {
                                 </td>
                                 <td className="py-2.5 px-4 text-slate-700">
                                   <span className="font-medium">{dep.name}</span>
-                                  <span className="text-[10px] text-slate-400 ml-1.5">(Dependente)</span>
+                                  <span className="text-[10px] text-slate-500 ml-1.5 font-medium">
+                                    {dep.kinship
+                                      ? `(${dep.kinship}${dep.docJud ? ' • DOC JUD' : ''})`
+                                      : dep.docJud
+                                      ? '(DOC JUD)'
+                                      : '(Dependente)'}
+                                  </span>
                                 </td>
                                 <td className="py-2.5 px-4 text-slate-600">{dep.birthDate}</td>
                                 <td className="py-2.5 px-4 max-w-xs">
@@ -971,6 +1035,30 @@ export const GidModule: React.FC = () => {
                                 </td>
                                 <td className="py-2.5 px-4 text-right">
                                   <div className="flex items-center justify-end gap-1.5">
+                                    {/* Ícone [V]: Vínculo com outro plano existente */}
+                                    {hasVinculo(dep) && (
+                                      <span
+                                        className="w-5 h-5 rounded-full bg-orange-500 text-black font-extrabold text-[10px] flex items-center justify-center shrink-0 shadow-2xs select-none"
+                                        title={
+                                          dep.linkedPlanNumbers?.some((p) => p && p.trim())
+                                            ? `Possui Vínculo com plano(s): ${dep.linkedPlanNumbers.filter((p) => p && p.trim()).join(', ')}`
+                                            : 'Possui Vínculo com Plano Existente'
+                                        }
+                                      >
+                                        V
+                                      </span>
+                                    )}
+
+                                    {/* Ícone [J]: DOC JUD */}
+                                    {dep.docJud && (
+                                      <span
+                                        className="w-5 h-5 rounded-full bg-yellow-400 text-black font-extrabold text-[10px] flex items-center justify-center shrink-0 shadow-2xs select-none"
+                                        title="Possui Vínculo Judicial (DOC JUD)"
+                                      >
+                                        J
+                                      </span>
+                                    )}
+
                                     {/* Ícone do Olho */}
                                     <button
                                       onClick={() => handleOpenFicha(dep, 'VIEW')}
@@ -1118,6 +1206,30 @@ export const GidModule: React.FC = () => {
                             </td>
                             <td className="py-3 px-4 text-right">
                               <div className="flex items-center justify-end gap-1.5">
+                                {/* Ícone [V]: Vínculo com outro plano existente */}
+                                {hasVinculo(c) && (
+                                  <span
+                                    className="w-5 h-5 rounded-full bg-orange-500 text-black font-extrabold text-[10px] flex items-center justify-center shrink-0 shadow-2xs select-none"
+                                    title={
+                                      c.linkedPlanNumbers?.some((p) => p && p.trim())
+                                        ? `Possui Vínculo com plano(s): ${c.linkedPlanNumbers.filter((p) => p && p.trim()).join(', ')}`
+                                        : 'Possui Vínculo com Plano Existente'
+                                    }
+                                  >
+                                    V
+                                  </span>
+                                )}
+
+                                {/* Ícone [J]: DOC JUD */}
+                                {c.docJud && (
+                                  <span
+                                    className="w-5 h-5 rounded-full bg-yellow-400 text-black font-extrabold text-[10px] flex items-center justify-center shrink-0 shadow-2xs select-none"
+                                    title="Possui Vínculo Judicial (DOC JUD)"
+                                  >
+                                    J
+                                  </span>
+                                )}
+
                                 {/* Ícone do Olho: Abre Ficha Cadastral em modo Visualização */}
                                 <button
                                   onClick={() => handleOpenFicha(c, 'VIEW')}
@@ -2004,6 +2116,74 @@ export const GidModule: React.FC = () => {
                   />
                 </div>
 
+                {/* ================= NATUREZA DE VÍNCULO (CHECKBOXES) ================= */}
+                <div className="bg-slate-50 border border-slate-300 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-slate-800 text-xs">
+                      Natureza de Vínculo:
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-semibold bg-white border border-slate-200 px-1.5 py-0.5 rounded">
+                      {dependentFormData.docJud ? 'DOC JUD ativo (+1 vínculo admitido)' : 'Marcação única ou com DOC JUD'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 pt-0.5">
+                    {(['Esposa', 'Filho', 'Irmão', 'Sobrinho', 'Neto'] as const).map((kinshipOpt) => {
+                      const isChecked = dependentFormData.kinship === kinshipOpt;
+                      return (
+                        <label
+                          key={kinshipOpt}
+                          className={`flex items-center gap-1.5 p-1.5 rounded-lg border text-xs cursor-pointer select-none transition-all ${
+                            isChecked
+                              ? 'bg-indigo-100 border-indigo-400 text-indigo-950 font-bold shadow-2xs'
+                              : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              setDependentFormData((prev) => ({
+                                ...prev,
+                                kinship: prev.kinship === kinshipOpt ? '' : kinshipOpt,
+                              }));
+                            }}
+                            className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                          />
+                          <span className="truncate">{kinshipOpt}</span>
+                        </label>
+                      );
+                    })}
+
+                    {/* Checkbox DOC JUD */}
+                    <label
+                      className={`flex items-center gap-1.5 p-1.5 rounded-lg border text-xs cursor-pointer select-none transition-all ${
+                        dependentFormData.docJud
+                          ? 'bg-amber-100 border-amber-400 text-amber-950 font-bold shadow-2xs'
+                          : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={dependentFormData.docJud}
+                        onChange={(e) => {
+                          setDependentFormData((prev) => ({
+                            ...prev,
+                            docJud: e.target.checked,
+                          }));
+                        }}
+                        className="w-3.5 h-3.5 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                      />
+                      <span className="font-bold flex items-center gap-1">
+                        DOC JUD
+                        <span className="w-3.5 h-3.5 rounded-full bg-yellow-400 text-black font-black text-[9px] inline-flex items-center justify-center">
+                          J
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
                     Data de Nascimento:
@@ -2044,16 +2224,61 @@ export const GidModule: React.FC = () => {
                   </div>
                 </div>
 
+                {/* ================= CAMPO: CPF / RG (COM CHECKBOXES E AUTO-FORMATAÇÃO NO ONBLUR) ================= */}
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    RG ou CPF (Opcional):
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-semibold text-slate-700">
+                      {depDocType === 'CPF' ? 'CPF (Opcional):' : 'RG (Opcional):'}
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-1 cursor-pointer text-slate-700 hover:text-indigo-600 select-none text-[11px]">
+                        <input
+                          type="checkbox"
+                          checked={depDocType === 'CPF'}
+                          onChange={() => {
+                            setDepDocType('CPF');
+                            if (dependentFormData.rgOrCpf) {
+                              setDependentFormData((prev) => ({
+                                ...prev,
+                                rgOrCpf: formatCpfNumber(prev.rgOrCpf),
+                              }));
+                            }
+                          }}
+                          className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        />
+                        <span className={depDocType === 'CPF' ? 'font-bold text-indigo-700' : 'font-medium'}>
+                          CPF
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-1 cursor-pointer text-slate-700 hover:text-indigo-600 select-none text-[11px]">
+                        <input
+                          type="checkbox"
+                          checked={depDocType === 'RG'}
+                          onChange={() => setDepDocType('RG')}
+                          className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        />
+                        <span className={depDocType === 'RG' ? 'font-bold text-indigo-700' : 'font-medium'}>
+                          RG
+                        </span>
+                      </label>
+                    </div>
+                  </div>
                   <input
                     type="text"
                     value={dependentFormData.rgOrCpf}
                     onChange={(e) => setDependentFormData({ ...dependentFormData, rgOrCpf: e.target.value })}
-                    placeholder="Ex: 000.000.000-00"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    onBlur={() => {
+                      if (depDocType === 'CPF') {
+                        const formatted = formatCpfNumber(dependentFormData.rgOrCpf);
+                        setDependentFormData((prev) => ({ ...prev, rgOrCpf: formatted }));
+                      }
+                    }}
+                    placeholder={
+                      depDocType === 'CPF'
+                        ? 'Digite os 11 números do CPF (ex: 12345678923 -> 123.456.789-23)'
+                        : 'Número do RG (digitação livre, ex: MG-12.345.678)'
+                    }
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs"
                   />
                 </div>
 
@@ -2286,6 +2511,7 @@ export const GidModule: React.FC = () => {
         isOpen={showVinculosModal}
         onClose={() => setShowVinculosModal(false)}
         initialAssociate={vinculosTargetAssociate}
+        category={gidSubTab as CategoryType}
       />
     </div>
   );
