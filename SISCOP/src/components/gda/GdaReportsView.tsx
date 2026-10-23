@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext';
 import { CardData, CategoryType } from '../../types';
 import { BrasaoPousoAlegre } from '../common/BrasaoPousoAlegre';
 import { executePrint } from '../../utils/printHelper';
+import { getNumericSortKey } from '../../utils/formatters';
 import {
   Printer,
   Calendar,
@@ -176,6 +177,14 @@ export const GdaReportsView: React.FC = () => {
       } else {
         group.otherCards.push(card);
       }
+    });
+
+    // Ordenar cada grupo do maior para o menor número de plano
+    groups.forEach((group) => {
+      group.familyCards.sort((a, b) => getNumericSortKey(b.titular) - getNumericSortKey(a.titular));
+      group.individualCards.sort((a, b) => getNumericSortKey(b) - getNumericSortKey(a));
+      group.specialCards.sort((a, b) => getNumericSortKey(b) - getNumericSortKey(a));
+      group.otherCards.sort((a, b) => getNumericSortKey(b) - getNumericSortKey(a));
     });
 
     // Sort groups descending by date
