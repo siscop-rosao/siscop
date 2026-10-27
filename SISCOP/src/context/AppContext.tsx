@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
   User,
   CardData,
@@ -54,6 +54,7 @@ import {
   deleteCardFromFirestore,
   syncReservationToFirestore,
   syncAllReservationsToFirestore,
+  deleteReservationFromFirestore,
   subscribeToCards,
   subscribeToReservations,
   syncUserToFirestore,
@@ -270,19 +271,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [fichaModalMode, setFichaModalMode] = useState<'VIEW' | 'EDIT'>('VIEW');
   const [isFichaModalOpen, setIsFichaModalOpen] = useState(false);
 
+  // Registro de IDs excluídos para prevenir que listeners em tempo real ressuscitem itens
+  const deletedCardIdsRef = useRef<Set<string>>(
+    (() => {
+      try {
+        const saved = localStorage.getItem('siscop_deleted_card_ids');
+        return saved ? new Set<string>(JSON.parse(saved)) : new Set<string>();
+      } catch {
+        return new Set<string>();
+      }
+    })()
+  );
+
+  const deletedReservationIdsRef = useRef<Set<string>>(
+    (() => {
+      try {
+        const saved = localStorage.getItem('siscop_deleted_res_ids');
+        return saved ? new Set<string>(JSON.parse(saved)) : new Set<string>();
+      } catch {
+        return new Set<string>();
+      }
+    })()
+  );
+
+  const deletedUserIdsRef = useRef<Set<string>>(
+    (() => {
+      try {
+        const saved = localStorage.getItem('siscop_deleted_user_ids');
+        return saved ? new Set<string>(JSON.parse(saved)) : new Set<string>();
+      } catch {
+        return new Set<string>();
+      }
+    })()
+  );
+
   // Cards State (Always ensure payment cells in back grids are blank!)
   const [cards, setCards] = useState<CardData[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.CARDS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length >= INITIAL_CARDS.length) {
-          // Normalize so all back grids have blank datePaid and signature
-          return parsed.map((c: CardData) => ({
-            ...c,
-            grid1: generateDefaultPaymentGrid(),
-            grid2: generateDefaultPaymentGrid(),
-          }));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const deleted = (() => {
+            try {
+              const d = localStorage.getItem('siscop_deleted_card_ids');
+              return d ? new Set<string>(JSON.parse(d)) : new Set<string>();
+            } catch {
+              return new Set<string>();
+            }
+          })();
+
+          return parsed
+            .filter((c: CardData) => !deleted.has(c.id))
+            .map((c: CardData) => ({
+              ...c,
+              grid1: Array.isArray(c.grid1) && c.grid1.length > 0 ? c.grid1 : generateDefaultPaymentGrid(),
+              grid2: Array.isArray(c.grid2) && c.grid2.length > 0 ? c.grid2 : generateDefaultPaymentGrid(),
+            }));
         }
       }
       return INITIAL_CARDS;
@@ -523,38 +568,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         setCards((currentLocal) => {
-          const map = new Map<string, CardData>();
+          const deletedIds = deletedCardIdsRef.current;
+          // 1. O Firestore é a fonte da verdade: filtra qualquer carteirinha excluída
+          const validRemote = remoteCards.filter((r) => !deletedIds.has(r.id));
+          const remoteIdSet = new Set(validRemote.map((r) => r.id));
 
-          // 1. Carrega todos os cadastros locais existentes
-          for (const c of currentLocal) {
-            map.set(c.id, c);
-          }
+          // 2. Preserva apenas itens locais recém-criados nos últimos 15s que ainda não refletiram no snapshot
+          const now = Date.now();
+          const pendingLocal = currentLocal.filter((c) => {
+            if (deletedIds.has(c.id)) return false;
+            if (remoteIdSet.has(c.id)) return false;
+            const createdTime = c.createdAt ? new Date(c.createdAt).getTime() : 0;
+            return now - createdTime < 15000;
+          });
 
-          // 2. Mescla os cadastros que vieram do Firestore (respeitando data de atualização)
-          for (const r of remoteCards) {
-            const existing = map.get(r.id);
-            if (!existing) {
-              map.set(r.id, r);
-            } else {
-              const rTime = r.updatedAt ? new Date(r.updatedAt).getTime() : 0;
-              const lTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-              if (rTime >= lTime) {
-                map.set(r.id, r);
-              }
-            }
-          }
-
-          const merged = Array.from(map.values());
-
-          // 3. Se houver cadastros locais que ainda não estão no Firestore (por exemplo, titulares recém-criados),
-          // envia-os em segundo plano para o Firestore para manter a nuvem 100% atualizada sem perdas
-          const remoteIds = new Set(remoteCards.map((r) => r.id));
-          const missingInCloud = currentLocal.filter((c) => !remoteIds.has(c.id));
-          if (missingInCloud.length > 0) {
-            syncAllCardsToFirestore(missingInCloud);
-          }
-
-          return merged;
+          return [...validRemote, ...pendingLocal];
         });
       });
 
@@ -572,22 +600,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         setReservations((currentLocal) => {
-          const map = new Map<string, BarbecueReservation>();
-          for (const r of currentLocal) {
-            map.set(r.id, r);
-          }
-          for (const r of remoteRes) {
-            map.set(r.id, r);
-          }
-          const merged = Array.from(map.values());
+          const deletedIds = deletedReservationIdsRef.current;
+          const validRemote = remoteRes.filter((r) => !deletedIds.has(r.id));
+          const remoteIdSet = new Set(validRemote.map((r) => r.id));
 
-          const remoteIds = new Set(remoteRes.map((r) => r.id));
-          const missingInCloud = currentLocal.filter((r) => !remoteIds.has(r.id));
-          if (missingInCloud.length > 0) {
-            syncAllReservationsToFirestore(missingInCloud);
-          }
+          const now = Date.now();
+          const pendingLocal = currentLocal.filter((r) => {
+            if (deletedIds.has(r.id)) return false;
+            if (remoteIdSet.has(r.id)) return false;
+            const createdTime = r.createdAt ? new Date(r.createdAt).getTime() : 0;
+            return now - createdTime < 15000;
+          });
 
-          return merged;
+          return [...validRemote, ...pendingLocal];
         });
       });
 
@@ -604,21 +629,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return;
         }
 
-        setUsers((currentLocal) => {
-          const map = new Map<string, User>();
-          for (const u of currentLocal) {
-            map.set(u.id, u);
-          }
-          for (const r of remoteUsers) {
-            map.set(r.id, r);
-          }
-          const merged = Array.from(map.values());
-          const remoteIds = new Set(remoteUsers.map((u) => u.id));
-          const missingInCloud = currentLocal.filter((u) => !remoteIds.has(u.id));
-          if (missingInCloud.length > 0) {
-            syncAllUsersToFirestore(missingInCloud);
-          }
-          return merged;
+        setUsers(() => {
+          const deletedIds = deletedUserIdsRef.current;
+          return remoteUsers.filter((u) => !deletedIds.has(u.id));
         });
       });
 
@@ -875,6 +888,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
+    deletedUserIdsRef.current.add(userId);
+    try {
+      localStorage.setItem(
+        'siscop_deleted_user_ids',
+        JSON.stringify(Array.from(deletedUserIdsRef.current))
+      );
+    } catch {}
+
     setUsers((prev) => prev.filter((u) => u.id !== userId));
     deleteUserFromFirestore(userId);
     addLog('EXCLUIR_USUARIO_SISTEMA', 'SISTEMA', `Usuário removido do sistema: ${target.name} (@${target.username})`);
@@ -997,6 +1018,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       neighborhood: cardData.neighborhood || '',
       cep: cardData.cep || '',
       linkedPlanNumbers: cardData.linkedPlanNumbers || [],
+      kinship: cardData.kinship,
+      docJud: !!cardData.docJud,
       procuracao: cardData.procuracao,
       batchPrintSelected: cardData.batchPrintSelected || false,
       status: cardData.status || 'ATIVO',
@@ -1093,6 +1116,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       neighborhood: dependentData.neighborhood || titular.neighborhood || '',
       cep: dependentData.cep || titular.cep || '',
       linkedPlanNumbers: dependentData.linkedPlanNumbers || titular.linkedPlanNumbers || [],
+      kinship: dependentData.kinship,
+      docJud: !!dependentData.docJud,
       procuracao: dependentData.procuracao,
       batchPrintSelected: false,
       status: 'ATIVO',
@@ -1164,11 +1189,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteCard = (id: string) => {
     const target = cards.find((c) => c.id === id);
     const depsToDelete = cards.filter((c) => c.familyHeadId === id);
-    setCards((prev) => prev.filter((c) => c.id !== id && c.familyHeadId !== id));
-    deleteCardFromFirestore(id);
-    for (const dep of depsToDelete) {
-      deleteCardFromFirestore(dep.id);
+    const idsToDelete = [id, ...depsToDelete.map((d) => d.id)];
+
+    // 1. Registra no conjunto de exclusões ativas para impedir ressurreição por listeners
+    idsToDelete.forEach((delId) => deletedCardIdsRef.current.add(delId));
+    try {
+      localStorage.setItem(
+        'siscop_deleted_card_ids',
+        JSON.stringify(Array.from(deletedCardIdsRef.current))
+      );
+    } catch {}
+
+    // 2. Remove imediatamente do estado do React
+    setCards((prev) => prev.filter((c) => !idsToDelete.includes(c.id)));
+
+    // 3. Atualiza imediatamente o armazenamento local (localStorage)
+    try {
+      const remaining = cards.filter((c) => !idsToDelete.includes(c.id));
+      localStorage.setItem(STORAGE_KEYS.CARDS, JSON.stringify(remaining));
+    } catch {}
+
+    // 4. Limpa referências ativas se o associado excluído estiver aberto em modal ou no GDA
+    if (fichaModalCard && idsToDelete.includes(fichaModalCard.id)) {
+      closeFichaModal();
     }
+    if (selectedCardForGda && idsToDelete.includes(selectedCardForGda.id)) {
+      setSelectedCardForGda(null);
+    }
+
+    // 5. Exclui permanentemente do Cloud Firestore
+    idsToDelete.forEach((delId) => {
+      deleteCardFromFirestore(delId);
+    });
+
     addLog(
       'EXCLUIR_USUARIO_GID',
       'GID_USUARIOS',
@@ -1258,7 +1311,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteReservation = (id: string) => {
     const target = reservations.find((r) => r.id === id);
+    deletedReservationIdsRef.current.add(id);
+    try {
+      localStorage.setItem(
+        'siscop_deleted_res_ids',
+        JSON.stringify(Array.from(deletedReservationIdsRef.current))
+      );
+    } catch {}
+
     setReservations((prev) => prev.filter((r) => r.id !== id));
+    deleteReservationFromFirestore(id);
     addLog(
       'CANCELAR_RESERVA',
       'GID_CHURRASQUEIRA',
