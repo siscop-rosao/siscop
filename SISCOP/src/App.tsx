@@ -94,42 +94,44 @@ const AppContent: React.FC = () => {
 
       {/* Ficha Cadastral Oficial do Associado */}
       {isFichaModalOpen && fichaModalCard && (
-        <FichaCadastralModal
-          isOpen={isFichaModalOpen}
-          onClose={closeFichaModal}
-          card={fichaModalCard}
-          initialMode={fichaModalMode}
-          onSave={(updated) => {
-            updateCard(updated.id, updated);
+        <ErrorBoundary fallbackTitle="Ficha Cadastral do Associado" onReset={closeFichaModal}>
+          <FichaCadastralModal
+            isOpen={isFichaModalOpen}
+            onClose={closeFichaModal}
+            card={fichaModalCard}
+            initialMode={fichaModalMode}
+            onSave={(updated) => {
+              updateCard(updated.id, updated);
 
-            // Se for Plano Familiar, replicar localização física e número do plano para os dependentes
-            const isFam = updated.category === 'PLANO_FAMILIAR' || updated.planType === 'FAMILIAR';
-            if (isFam && updated.isTitular) {
-              const dependents = cards.filter((c) => c.familyHeadId === updated.id);
-              dependents.forEach((dep, idx) => {
-                const depUpdates: Partial<typeof updated> = {};
-                if (updated.physicalArchiveLocation !== undefined) {
-                  depUpdates.physicalArchiveLocation = updated.physicalArchiveLocation;
-                }
-                if (updated.controlNumber) {
-                  const typedNum = updated.controlNumber.trim();
-                  if (/-\d+$/.test(typedNum)) {
-                    const base = typedNum.replace(/-\d+$/, '').trim();
-                    depUpdates.controlNumber = `${base}-${String(idx + 2).padStart(2, '0')}`;
-                  } else {
-                    depUpdates.controlNumber = typedNum;
+              // Se for Plano Familiar, replicar localização física e número do plano para os dependentes
+              const isFam = updated.category === 'PLANO_FAMILIAR' || updated.planType === 'FAMILIAR';
+              if (isFam && updated.isTitular) {
+                const dependents = cards.filter((c) => c.familyHeadId === updated.id);
+                dependents.forEach((dep, idx) => {
+                  const depUpdates: Partial<typeof updated> = {};
+                  if (updated.physicalArchiveLocation !== undefined) {
+                    depUpdates.physicalArchiveLocation = updated.physicalArchiveLocation;
                   }
-                }
-                if (Object.keys(depUpdates).length > 0) {
-                  updateCard(dep.id, depUpdates);
-                }
-              });
-            }
+                  if (updated.controlNumber) {
+                    const typedNum = updated.controlNumber.trim();
+                    if (/-\d+$/.test(typedNum)) {
+                      const base = typedNum.replace(/-\d+$/, '').trim();
+                      depUpdates.controlNumber = `${base}-${String(idx + 2).padStart(2, '0')}`;
+                    } else {
+                      depUpdates.controlNumber = typedNum;
+                    }
+                  }
+                  if (Object.keys(depUpdates).length > 0) {
+                    updateCard(dep.id, depUpdates);
+                  }
+                });
+              }
 
-            openFichaModal(updated, 'VIEW');
-          }}
-          currentUser={currentUser}
-        />
+              openFichaModal(updated, 'VIEW');
+            }}
+            currentUser={currentUser}
+          />
+        </ErrorBoundary>
       )}
     </div>
   );
