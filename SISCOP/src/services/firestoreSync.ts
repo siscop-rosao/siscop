@@ -114,6 +114,18 @@ export async function syncAllReservationsToFirestore(reservations: BarbecueReser
 }
 
 /**
+ * Remove uma reserva de churrasqueira do Cloud Firestore
+ */
+export async function deleteReservationFromFirestore(resId: string): Promise<void> {
+  if (!db || !resId) return;
+  try {
+    await deleteDoc(doc(db, 'reservations', resId));
+  } catch (error) {
+    console.warn('[Firestore] Falha ao excluir reserva no Firestore:', error);
+  }
+}
+
+/**
  * Salva log de auditoria no Cloud Firestore
  */
 export async function syncLogToFirestore(log: AuditLog): Promise<void> {
