@@ -127,12 +127,13 @@ export const GidModule: React.FC = () => {
 
     const norm = clean.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const found = cards.find((c) => {
-      const cNorm = c.controlNumber.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      const cCtrl = String(c?.controlNumber || '');
+      const cNorm = cCtrl.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
       return (
-        cNorm === norm ||
-        cNorm.includes(norm) ||
-        norm.includes(cNorm) ||
-        c.controlNumber.toLowerCase().includes(clean.toLowerCase())
+        (norm && cNorm === norm) ||
+        (norm && cNorm.includes(norm)) ||
+        (norm && norm.includes(cNorm)) ||
+        cCtrl.toLowerCase().includes(clean.toLowerCase())
       );
     });
 
@@ -168,6 +169,13 @@ export const GidModule: React.FC = () => {
   const [showAddDependentModal, setShowAddDependentModal] = useState(false);
   const [targetTitular, setTargetTitular] = useState<CardData | null>(null);
   const [addDependentToast, setAddDependentToast] = useState<string | null>(null);
+  const [deleteFeedbackToast, setDeleteFeedbackToast] = useState<string | null>(null);
+
+  const handleDeleteCard = (card: CardData) => {
+    deleteCard(card.id);
+    setDeleteFeedbackToast(`Cadastro "${card.name}" (Nº ${card.controlNumber}) excluído permanentemente.`);
+    setTimeout(() => setDeleteFeedbackToast(null), 4000);
+  };
   const [dependentFormData, setDependentFormData] = useState({
     name: '',
     birthDate: '',
@@ -804,6 +812,23 @@ export const GidModule: React.FC = () => {
             </div>
           )}
 
+          {/* TOAST DE FEEDBACK AO EXCLUIR CADASTRO */}
+          {deleteFeedbackToast && (
+            <div className="bg-slate-900 text-white px-6 py-2.5 flex items-center justify-between text-xs font-bold shadow-xs transition-all border-b border-slate-700">
+              <div className="flex items-center gap-2">
+                <Trash2 className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{deleteFeedbackToast}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeleteFeedbackToast(null)}
+                className="text-slate-300 hover:text-white cursor-pointer px-1.5 py-0.5 rounded hover:bg-slate-800"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {/* TABLE / LIST OF MEMBERS WITH CONTROL NUMBERS & FORMATTED NOTEPAD */}
           <div className="flex-1 overflow-auto p-4 sm:p-6">
             <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
@@ -953,8 +978,8 @@ export const GidModule: React.FC = () => {
                                     <Printer className="w-3 h-3" /> Carteirinha
                                   </button>
                                   <button
-                                    onClick={() => deleteCard(titular.id)}
-                                    className="p-1 text-slate-400 hover:text-red-600 rounded"
+                                    onClick={() => handleDeleteCard(titular)}
+                                    className="p-1 text-slate-400 hover:text-red-600 rounded cursor-pointer"
                                     title="Excluir titular e dependentes"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -1085,8 +1110,8 @@ export const GidModule: React.FC = () => {
                                       <Printer className="w-3 h-3" /> Imprimir
                                     </button>
                                     <button
-                                      onClick={() => deleteCard(dep.id)}
-                                      className="p-1 text-slate-400 hover:text-red-600 rounded"
+                                      onClick={() => handleDeleteCard(dep)}
+                                      className="p-1 text-slate-400 hover:text-red-600 rounded cursor-pointer"
                                       title="Excluir dependente"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
@@ -1256,8 +1281,8 @@ export const GidModule: React.FC = () => {
                                   <Printer className="w-3 h-3" /> Carteirinha
                                 </button>
                                 <button
-                                  onClick={() => deleteCard(c.id)}
-                                  className="p-1 text-slate-400 hover:text-red-600 rounded"
+                                  onClick={() => handleDeleteCard(c)}
+                                  className="p-1 text-slate-400 hover:text-red-600 rounded cursor-pointer"
                                   title="Excluir cadastro"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />

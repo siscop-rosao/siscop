@@ -5,7 +5,8 @@ import { RichTextEditor } from '../common/RichTextEditor';
 import { BrasaoPousoAlegre } from '../common/BrasaoPousoAlegre';
 import { AcertoCalculatorModal } from '../calculator/AcertoCalculatorModal';
 import { VinculosReportModal } from './VinculosReportModal';
-import { formatBirthDate, formatPhoneNumber, formatCpfNumber, formatCepNumber } from '../../utils/formatters';
+import { generateDefaultPaymentGrid } from '../../data/initialData';
+import { formatBirthDate, formatPhoneNumber, formatCpfNumber, formatCepNumber, hasVinculo } from '../../utils/formatters';
 import { executePrint } from '../../utils/printHelper';
 import { optimizeImageBase64 } from '../../services/imageOptimizer';
 import {
@@ -114,12 +115,13 @@ export const FichaCadastralModal: React.FC<FichaCadastralModalProps> = ({
 
     const norm = clean.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const found = cards.find((c) => {
-      const cNorm = c.controlNumber.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      const cCtrl = String(c?.controlNumber || '');
+      const cNorm = cCtrl.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
       return (
-        cNorm === norm ||
-        cNorm.includes(norm) ||
-        norm.includes(cNorm) ||
-        c.controlNumber.toLowerCase().includes(clean.toLowerCase())
+        (norm && cNorm === norm) ||
+        (norm && cNorm.includes(norm)) ||
+        (norm && norm.includes(cNorm)) ||
+        cCtrl.toLowerCase().includes(clean.toLowerCase())
       );
     });
 
@@ -230,7 +232,7 @@ export const FichaCadastralModal: React.FC<FichaCadastralModalProps> = ({
   // Sync state with incoming card prop
   useEffect(() => {
     if (card) {
-      const rawLinks = card.linkedPlanNumbers || [];
+      const rawLinks = Array.isArray(card.linkedPlanNumbers) ? card.linkedPlanNumbers : [];
       const safeLinks = [
         rawLinks[0] || '',
         rawLinks[1] || '',
@@ -239,8 +241,20 @@ export const FichaCadastralModal: React.FC<FichaCadastralModalProps> = ({
         rawLinks[4] || '',
       ];
 
+      const safeGrid1 = Array.isArray(card.grid1) && card.grid1.length > 0
+        ? card.grid1
+        : generateDefaultPaymentGrid();
+      const safeGrid2 = Array.isArray(card.grid2) && card.grid2.length > 0
+        ? card.grid2
+        : generateDefaultPaymentGrid();
+
       setFormData({
         ...card,
+        name: card.name || 'Associado',
+        controlNumber: card.controlNumber || '',
+        photoUrl: typeof card.photoUrl === 'string' ? card.photoUrl : '',
+        grid1: safeGrid1,
+        grid2: safeGrid2,
         linkedPlanNumbers: safeLinks,
         notesHtml: card.notesHtml || '',
         internalInfoHtml: card.internalInfoHtml || '',
@@ -528,6 +542,29 @@ export const FichaCadastralModal: React.FC<FichaCadastralModalProps> = ({
                 <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-blue-900/80 text-blue-200 border border-blue-700/60">
                   {formData.controlNumber}
                 </span>
+                {formData.kinship && (
+                  <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-900/80 text-indigo-200 border border-indigo-700/60">
+                    {formData.kinship}
+                  </span>
+                )}
+                {/* Ícone [V]: Vínculo */}
+                {((formData.linkedPlanNumbers && formData.linkedPlanNumbers.some((p) => p && p.trim())) || !formData.isTitular || formData.familyHeadId || formData.kinship) && (
+                  <span
+                    className="w-5 h-5 rounded-full bg-orange-500 text-black font-extrabold text-[10px] inline-flex items-center justify-center shadow-2xs select-none"
+                    title={`Possui Vínculo: ${formData.kinship || 'Cadastral'}`}
+                  >
+                    V
+                  </span>
+                )}
+                {/* Ícone [J]: DOC JUD */}
+                {formData.docJud && (
+                  <span
+                    className="w-5 h-5 rounded-full bg-yellow-400 text-black font-extrabold text-[10px] inline-flex items-center justify-center shadow-2xs select-none"
+                    title="Possui Documento Judicial (DOC JUD)"
+                  >
+                    J
+                  </span>
+                )}
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-900/80 text-emerald-200 border border-emerald-700/60">
                   {formData.status}
                 </span>
@@ -694,6 +731,26 @@ export const FichaCadastralModal: React.FC<FichaCadastralModalProps> = ({
                       DEPENDENTE
                     </span>
                   )}
+
+                  {/* Ícone [V] Laranja: Vínculo com outro plano existente */}
+                  {hasVinculo(formData) && (
+                    <span
+                      className="w-5 h-5 rounded-full bg-orange-500 text-black font-extrabold text-[10px] flex items-center justify-center shrink-0 shadow-2xs select-none"
+                      title="Possui Vínculo com Plano Existente"
+                    >
+                      V
+                    </span>
+                  )}
+
+                  {/* Ícone [J] Amarelo: DOC JUD */}
+                  {formData.docJud && (
+                    <span
+                      className="w-5 h-5 rounded-full bg-yellow-400 text-black font-extrabold text-[10px] flex items-center justify-center shrink-0 shadow-2xs select-none"
+                      title="Possui Vínculo Judicial (DOC JUD)"
+                    >
+                      J
+                    </span>
+                  )}
                 </div>
 
                 {/* Input oculto para carregar arquivo de foto */}
@@ -709,12 +766,15 @@ export const FichaCadastralModal: React.FC<FichaCadastralModalProps> = ({
                   {/* CAMPO DE FOTO DO ASSOCIADO (TAMANHO MÉDIO PARA BOA VISUALIZAÇÃO E IDENTIFICAÇÃO) */}
                   <div className="flex flex-col items-center shrink-0 w-full md:w-44 self-start">
                     <div className="w-40 md:w-44 h-52 relative rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 overflow-hidden flex flex-col items-center justify-center shadow-xs transition-all group">
-                      {formData.photoUrl ? (
+                      {formData.photoUrl && typeof formData.photoUrl === 'string' && formData.photoUrl.trim() ? (
                         <>
                           <img
                             src={formData.photoUrl}
-                            alt={`Foto de ${formData.name}`}
+                            alt={`Foto de ${formData.name || 'Associado'}`}
                             className="w-full h-full object-cover rounded-lg"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
                           />
                           {mode === 'EDIT' && (
                             <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2 print:hidden">
@@ -1426,16 +1486,19 @@ export const FichaCadastralModal: React.FC<FichaCadastralModalProps> = ({
                       }
 
                       // Busca automática para modo VIEW
-                      const cleanNorm = planNum.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-                      const found = cards.find((c) => {
-                        const cNorm = c.controlNumber.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-                        return (
-                          cNorm === cleanNorm ||
-                          cNorm.includes(cleanNorm) ||
-                          cleanNorm.includes(cNorm) ||
-                          c.controlNumber.toLowerCase().includes(planNum.toLowerCase())
-                        );
-                      });
+                      const cleanNorm = String(planNum || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+                      const found = cleanNorm
+                        ? cards.find((c) => {
+                            const cCtrl = String(c?.controlNumber || '');
+                            const cNorm = cCtrl.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+                            return (
+                              (cNorm && cNorm === cleanNorm) ||
+                              (cNorm && cNorm.includes(cleanNorm)) ||
+                              (cNorm && cleanNorm.includes(cNorm)) ||
+                              cCtrl.toLowerCase().includes(planNum.toLowerCase())
+                            );
+                          })
+                        : undefined;
 
                       return (
                         <div
@@ -1809,7 +1872,7 @@ export const FichaCadastralModal: React.FC<FichaCadastralModalProps> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200">
-                        {formData.grid1.map((row, idx) => (
+                        {(formData.grid1 || []).map((row, idx) => (
                           <tr key={row.month} className="hover:bg-slate-50 transition-colors">
                             {/* Mês */}
                             <td className="py-2 px-2 text-center font-bold text-slate-900 border-r border-slate-200 bg-slate-50/50">
@@ -1899,7 +1962,7 @@ export const FichaCadastralModal: React.FC<FichaCadastralModalProps> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200">
-                        {formData.grid2.map((row, idx) => (
+                        {(formData.grid2 || []).map((row, idx) => (
                           <tr key={row.month} className="hover:bg-slate-50 transition-colors">
                             {/* Mês */}
                             <td className="py-2 px-2 text-center font-bold text-slate-900 border-r border-slate-200 bg-slate-50/50">
@@ -2526,11 +2589,13 @@ export const FichaCadastralModal: React.FC<FichaCadastralModalProps> = ({
       )}
 
       {/* ================= MODAL RELATÓRIO DE VÍNCULOS EXISTENTES ================= */}
-      <VinculosReportModal
-        isOpen={showVinculosReport}
-        onClose={() => setShowVinculosReport(false)}
-        initialAssociate={formData}
-      />
+      {showVinculosReport && (
+        <VinculosReportModal
+          isOpen={showVinculosReport}
+          onClose={() => setShowVinculosReport(false)}
+          initialAssociate={formData}
+        />
+      )}
     </div>
   );
 };
