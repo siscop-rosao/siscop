@@ -338,72 +338,53 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
               : "'Inter', sans-serif",
         }}
       >
-        {/* DOIS QUADROS LADO A LADO - Estendidos para o topo da carteirinha */}
-        <div className="grid grid-cols-2 gap-1.5 flex-1 min-h-0 overflow-hidden">
-          {/* Quadro 1 (Ano 1) */}
-          <div className="border border-slate-900 rounded-xs flex flex-col overflow-hidden h-full">
-            {/* Primeira linha com Ano 20____ */}
-            <div className="bg-slate-100 border-b border-slate-900 py-0.5 text-center font-bold text-[9px] uppercase tracking-wider shrink-0">
-              Ano {card.year1 || '20____'}
-            </div>
+        {/* TRÊS QUADROS LADO A LADO (ANO 2026, ANO 2027, ANO 2028) - Estendidos para o topo da carteirinha */}
+        {(() => {
+          const y1 = card.year1 || '2026';
+          const y1Num = parseInt(y1, 10);
+          const y2 = card.year2 || (!isNaN(y1Num) ? String(y1Num + 1) : '2027');
+          const y2Num = parseInt(y2, 10);
+          const y3 = card.year3 || (!isNaN(y2Num) ? String(y2Num + 1) : (!isNaN(y1Num) ? String(y1Num + 2) : '2028'));
 
-            {/* Cabeçalho das 3 colunas */}
-            <div className="grid grid-cols-12 border-b border-slate-900 text-[7px] font-bold text-center bg-slate-50 py-0.5 shrink-0">
-              <div className="col-span-4 border-r border-slate-900">Pgto Data</div>
-              <div className="col-span-3 border-r border-slate-900 text-[6.5px]">Mês</div>
-              <div className="col-span-5">Assinatura</div>
-            </div>
+          const yearColumns = [
+            { key: 'year1', yearLabel: y1 },
+            { key: 'year2', yearLabel: y2 },
+            { key: 'year3', yearLabel: y3 },
+          ];
 
-            {/* Linhas dos 12 meses - Altura rigorosamente idêntica para todos os meses (incluindo JAN) */}
-            <div className="flex-1 grid grid-rows-12 divide-y divide-slate-300 min-h-0">
-              {MONTHS_LIST.map((month, idx) => (
-                <div key={idx} className="grid grid-cols-12 text-[7.5px] items-center h-full min-h-0 leading-none">
-                  <div className="col-span-4 border-r border-slate-300 text-center font-mono text-[6.5px] truncate px-0.5 h-full flex items-center justify-center">
-                    {/* Em branco para preenchimento manual */}
+          return (
+            <div className="grid grid-cols-3 gap-1 flex-1 min-h-0 overflow-hidden">
+              {yearColumns.map((col) => (
+                <div key={col.key} className="border border-slate-900 rounded-xs flex flex-col overflow-hidden h-full">
+                  {/* Primeira linha com Ano */}
+                  <div className="bg-slate-100 border-b border-slate-900 py-0.5 text-center font-bold text-[8px] uppercase tracking-wider shrink-0">
+                    Ano {col.yearLabel}
                   </div>
-                  <div className="col-span-3 border-r border-slate-300 text-center font-bold text-[7px] bg-slate-50/80 text-slate-800 h-full flex items-center justify-center">
-                    {month}
+
+                  {/* Cabeçalho das 2 colunas: Mês e Assinatura (Pgto Data excluída conforme Melhoria 01) */}
+                  <div className="grid grid-cols-12 border-b border-slate-900 text-[6.5px] font-bold text-center bg-slate-50 py-0.5 shrink-0">
+                    <div className="col-span-4 border-r border-slate-900 text-[6.5px]">Mês</div>
+                    <div className="col-span-8 text-[6.5px]">Assinatura</div>
                   </div>
-                  <div className="col-span-5 text-center font-mono text-[6.5px] truncate px-0.5 h-full flex items-center justify-center">
-                    {/* Em branco para assinatura/carimbo manual */}
+
+                  {/* Linhas dos 12 meses - Altura rigorosamente idêntica para todos os meses (incluindo JAN) */}
+                  <div className="flex-1 grid grid-rows-12 divide-y divide-slate-300 min-h-0">
+                    {MONTHS_LIST.map((month, idx) => (
+                      <div key={idx} className="grid grid-cols-12 text-[7px] items-center h-full min-h-0 leading-none">
+                        <div className="col-span-4 border-r border-slate-300 text-center font-bold text-[6.5px] bg-slate-50/80 text-slate-800 h-full flex items-center justify-center">
+                          {month}
+                        </div>
+                        <div className="col-span-8 text-center font-mono text-[6px] truncate px-0.5 h-full flex items-center justify-center">
+                          {/* Em branco para assinatura/carimbo manual */}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-
-          {/* Quadro 2 (Ano 2) */}
-          <div className="border border-slate-900 rounded-xs flex flex-col overflow-hidden h-full">
-            {/* Primeira linha com Ano 20____ */}
-            <div className="bg-slate-100 border-b border-slate-900 py-0.5 text-center font-bold text-[9px] uppercase tracking-wider shrink-0">
-              Ano {card.year2 || '20____'}
-            </div>
-
-            {/* Cabeçalho das 3 colunas */}
-            <div className="grid grid-cols-12 border-b border-slate-900 text-[7px] font-bold text-center bg-slate-50 py-0.5 shrink-0">
-              <div className="col-span-4 border-r border-slate-900">Pgto Data</div>
-              <div className="col-span-3 border-r border-slate-900 text-[6.5px]">Mês</div>
-              <div className="col-span-5">Assinatura</div>
-            </div>
-
-            {/* Linhas dos 12 meses - Altura rigorosamente idêntica para todos os meses (incluindo JAN) */}
-            <div className="flex-1 grid grid-rows-12 divide-y divide-slate-300 min-h-0">
-              {MONTHS_LIST.map((month, idx) => (
-                <div key={idx} className="grid grid-cols-12 text-[7.5px] items-center h-full min-h-0 leading-none">
-                  <div className="col-span-4 border-r border-slate-300 text-center font-mono text-[6.5px] truncate px-0.5 h-full flex items-center justify-center">
-                    {/* Em branco para preenchimento manual */}
-                  </div>
-                  <div className="col-span-3 border-r border-slate-300 text-center font-bold text-[7px] bg-slate-50/80 text-slate-800 h-full flex items-center justify-center">
-                    {month}
-                  </div>
-                  <div className="col-span-5 text-center font-mono text-[6.5px] truncate px-0.5 h-full flex items-center justify-center">
-                    {/* Em branco para assinatura/carimbo manual */}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* Rodapé do Verso: NÃO PLASTIFICAR (Linha desnecessária eliminada, contorno uniforme de 1px e rente ao texto) */}
         <div className="mt-0.5 pt-0.5 pb-0 flex flex-col items-center justify-center w-full shrink-0 border-0 outline-none">
