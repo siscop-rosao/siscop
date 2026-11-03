@@ -15,6 +15,7 @@ import {
   BackupGenerationRecord,
   BackupRestoreRecord,
   LoginResult,
+  RestorePoint,
 } from '../types';
 import {
   INITIAL_USERS,
@@ -66,6 +67,9 @@ import {
   syncLayoutConfigToFirestore,
   subscribeToLayoutConfig,
   syncFullDatabaseToFirestore,
+  syncRestorePointToFirestore,
+  deleteRestorePointFromFirestore,
+  subscribeToRestorePoints,
 } from '../services/firestoreSync';
 
 export const formatBackupFilename = (prefix = 'Backup_DataBase'): string => {
@@ -213,6 +217,12 @@ interface AppContextType {
   recordGeneratedBackup: (record: BackupGenerationRecord) => void;
   recordRestoredBackup: (record: BackupRestoreRecord) => void;
 
+  // Pontos de Restauração da Plataforma (Estilo Windows)
+  restorePoints: RestorePoint[];
+  createRestorePoint: (name: string, description?: string) => RestorePoint;
+  deleteRestorePoint: (restorePointId: string) => void;
+  restoreFromRestorePoint: (restorePointId: string) => Promise<{ success: boolean; message: string }>;
+
   // Cloud Sync (Firebase Firestore)
   syncWithCloudNow: () => Promise<{ success: boolean; count: number; error?: string }>;
   isCloudSyncing: boolean;
@@ -231,6 +241,7 @@ const STORAGE_KEYS = {
   SETTINGS: 'siscop_platform_settings_v2',
   LAST_GENERATED_BACKUP: 'pmpa_last_generated_backup_v2',
   LAST_RESTORED_BACKUP: 'pmpa_last_restored_backup_v2',
+  RESTORE_POINTS: 'siscop_restore_points_v2',
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -479,7 +490,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Restore Points State (Ponto de Restauração da Plataforma - Estilo Windows)
+  const [restorePoints, setRestorePoints] = useState<RestorePoint[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.RESTORE_POINTS);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   // Persistence Effects
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.RESTORE_POINTS, JSON.stringify(restorePoints));
+    } catch (e) {
+      console.warn('Failed saving restore points to localStorage:', e);
+    }
+  }, [restorePoints]);
+
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
@@ -647,12 +676,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       });
 
+      const unsubRestorePoints = subscribeToRestorePoints((remotePoints) => {
+        if (!Array.isArray(remotePoints)) return;
+        setRestorePoints((currentLocal) => {
+          const map = new Map<string, RestorePoint>();
+          remotePoints.forEach((p) => map.set(p.id, p));
+          currentLocal.forEach((p) => {
+            if (!map.has(p.id)) map.set(p.id, p);
+          });
+          return Array.from(map.values()).sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+        });
+      });
+
       return () => {
         unsubCards();
         unsubRes();
         unsubUsers();
         unsubSettings();
         unsubLayout();
+        unsubRestorePoints();
       };
     } catch (e) {
       console.warn('Falha ao inicializar conexão Firestore:', e);
@@ -1892,6 +1936,151 @@ npm run build
     localStorage.clear();
   };
 
+  const createRestorePoint = (name: string, description?: string): RestorePoint => {
+    const trimmedName = name.trim() || `Ponto de Restauração - ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`;
+    const newPoint: RestorePoint = {
+      id: `rp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      name: trimmedName,
+      createdAt: new Date().toISOString(),
+      createdBy: currentUser?.name || 'Administrador do Sistema',
+      description: description?.trim() || undefined,
+      statistics: {
+        cardsCount: cards.length,
+        reservationsCount: reservations.length,
+        popsCount: popProcedures.length,
+        logsCount: logs.length,
+        usersCount: users.length,
+      },
+      snapshot: {
+        cards: JSON.parse(JSON.stringify(cards)),
+        reservations: JSON.parse(JSON.stringify(reservations)),
+        popProcedures: JSON.parse(JSON.stringify(popProcedures)),
+        logs: JSON.parse(JSON.stringify(logs)),
+        users: JSON.parse(JSON.stringify(users)),
+        layoutConfig: JSON.parse(JSON.stringify(layoutConfig)),
+        platformSettings: JSON.parse(JSON.stringify(platformSettings)),
+      },
+    };
+
+    setRestorePoints((prev) => [newPoint, ...prev.filter((p) => p.id !== newPoint.id)]);
+    syncRestorePointToFirestore(newPoint);
+    addLog(
+      'CRIAR_PONTO_RESTAURACAO',
+      'BACKUP',
+      `Ponto de Restauração "${trimmedName}" gerado com sucesso contendo ${cards.length} associados, ${reservations.length} reservas e toda a arquitetura da plataforma.`,
+      newPoint.id,
+      trimmedName
+    );
+    return newPoint;
+  };
+
+  const deleteRestorePoint = (restorePointId: string) => {
+    const target = restorePoints.find((p) => p.id === restorePointId);
+    setRestorePoints((prev) => prev.filter((p) => p.id !== restorePointId));
+    deleteRestorePointFromFirestore(restorePointId);
+    if (target) {
+      addLog(
+        'EXCLUIR_PONTO_RESTAURACAO',
+        'BACKUP',
+        `Ponto de Restauração "${target.name}" excluído.`,
+        target.id,
+        target.name
+      );
+    }
+  };
+
+  const restoreFromRestorePoint = async (restorePointId: string): Promise<{ success: boolean; message: string }> => {
+    const point = restorePoints.find((p) => p.id === restorePointId);
+    if (!point) {
+      return { success: false, message: 'Ponto de Restauração não encontrado.' };
+    }
+
+    try {
+      // 1. Limpa blocklists locais de exclusão para permitir restauração completa dos registros
+      deletedCardIdsRef.current.clear();
+      deletedReservationIdsRef.current.clear();
+      deletedUserIdsRef.current.clear();
+      try {
+        localStorage.removeItem('siscop_deleted_card_ids');
+        localStorage.removeItem('siscop_deleted_res_ids');
+        localStorage.removeItem('siscop_deleted_user_ids');
+      } catch (err) {
+        console.warn('Erro ao limpar blocklist de exclusões locais:', err);
+      }
+
+      // 2. Restaura o estado em memória e localStorage a partir do snapshot fiel
+      const snap = point.snapshot;
+      if (snap.cards && Array.isArray(snap.cards)) {
+        setCards(snap.cards);
+      }
+      if (snap.reservations && Array.isArray(snap.reservations)) {
+        setReservations(snap.reservations);
+      }
+      if (snap.popProcedures && Array.isArray(snap.popProcedures)) {
+        setPopProcedures(snap.popProcedures);
+      }
+      if (snap.users && Array.isArray(snap.users)) {
+        setUsers(snap.users);
+      }
+      if (snap.layoutConfig) {
+        setLayoutConfig(snap.layoutConfig);
+      }
+      if (snap.platformSettings) {
+        setPlatformSettings(snap.platformSettings);
+      }
+
+      const restoreLog: AuditLog = {
+        id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        timestamp: new Date().toISOString(),
+        userId: currentUser?.id || 'sys',
+        userName: currentUser?.name || 'Sistema Operacional',
+        userRole: currentUser?.role || 'sistema',
+        action: 'RESTAURAR_PONTO_RESTAURACAO',
+        module: 'BACKUP',
+        details: `Plataforma SISCOP restaurada com fidelidade total para o Ponto de Restauração "${point.name}" (gerado originalmente em ${new Date(point.createdAt).toLocaleString('pt-BR')}).`,
+        targetId: point.id,
+        targetName: point.name,
+      };
+
+      const restoredLogs = snap.logs && Array.isArray(snap.logs) ? [restoreLog, ...snap.logs] : [restoreLog, ...logs];
+      setLogs(restoredLogs);
+
+      // 3. Registra no histórico de último backup restaurado
+      recordRestoredBackup({
+        filename: `Ponto_${point.name.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`,
+        timestamp: new Date().toISOString(),
+        sizeBytes: 150000,
+        success: true,
+        restoredItemsCount: {
+          cards: point.statistics.cardsCount,
+          reservations: point.statistics.reservationsCount,
+          popProcedures: point.statistics.popsCount,
+          logs: point.statistics.logsCount,
+        },
+      });
+
+      // 4. Sincroniza o estado restaurado com o Cloud Firestore
+      await syncFullDatabaseToFirestore({
+        cards: snap.cards || [],
+        users: snap.users || [],
+        reservations: snap.reservations || [],
+        settings: snap.platformSettings || platformSettings,
+        layoutConfig: snap.layoutConfig || layoutConfig,
+      });
+
+      return {
+        success: true,
+        message: `Plataforma restaurada com sucesso para o Ponto de Restauração "${point.name}". Todos os dados e configurações foram recuperados!`,
+      };
+    } catch (error) {
+      console.error('Falha ao restaurar ponto de restauração:', error);
+      return {
+        success: false,
+        message: 'Ocorreu um erro ao restaurar a plataforma. Tente novamente.',
+      };
+    }
+  };
+
   const syncWithCloudNow = async (): Promise<{ success: boolean; count: number; error?: string }> => {
     setIsCloudSyncing(true);
     try {
@@ -1996,6 +2185,11 @@ npm run build
         lastRestoredBackup,
         recordGeneratedBackup,
         recordRestoredBackup,
+
+        restorePoints,
+        createRestorePoint,
+        deleteRestorePoint,
+        restoreFromRestorePoint,
 
         syncWithCloudNow,
         isCloudSyncing,
