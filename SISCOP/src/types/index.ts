@@ -138,11 +138,13 @@ export interface CardData {
   specialCondition?: string; // "PCD", "Idoso (60+)", "Autista (TEA)", "Síndrome de Down", "Outro"
   medicalReportInfo?: string; // Número do laudo / CIPTEA
   
-  // Back grid configuration
+  // Back grid configuration (3 anos: ex: 2026, 2027, 2028 com Mês e Assinatura)
   year1: string; // e.g., "2026"
   year2: string; // e.g., "2027"
+  year3?: string; // e.g., "2028"
   grid1: MonthPayment[];
   grid2: MonthPayment[];
+  grid3?: MonthPayment[];
   
   notesHtml?: string; // Rich text Observações
   internalInfoHtml?: string; // Rich text Informações Internas
