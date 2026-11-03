@@ -42,6 +42,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Pontos de Restauração da plataforma (Estilo Windows)
+    match /restorePoints/{pointId} {
+      allow read, write: if true;
+    }
+
     // Regra geral de segurança para coleções operacionais do SISCOP
     match /{document=**} {
       allow read, write: if true;
