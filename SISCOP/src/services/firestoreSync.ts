@@ -14,6 +14,7 @@ import {
   User,
   PlatformSettings,
   CardLayoutConfig,
+  RestorePoint,
 } from '../types';
 
 /**
@@ -343,6 +344,68 @@ export function subscribeToLayoutConfig(onUpdate: (layout: CardLayoutConfig) => 
     );
   } catch (err) {
     console.warn('[Firestore] Falha ao registrar listener de layout:', err);
+    return () => {};
+  }
+}
+
+/**
+ * Salva ou atualiza um Ponto de Restauração no Cloud Firestore
+ */
+export async function syncRestorePointToFirestore(point: RestorePoint): Promise<void> {
+  if (!db || !point || !point.id) return;
+  try {
+    const pointRef = doc(db, 'restorePoints', point.id);
+    const sanitized = sanitizeForFirestore(point);
+    await setDoc(pointRef, sanitized, { merge: true });
+    console.log(`[Firestore] Ponto de Restauração "${point.name}" salvo com sucesso.`);
+  } catch (error) {
+    console.warn('[Firestore] Falha ao sincronizar Ponto de Restauração:', error);
+  }
+}
+
+/**
+ * Remove um Ponto de Restauração do Cloud Firestore
+ */
+export async function deleteRestorePointFromFirestore(pointId: string): Promise<void> {
+  if (!db || !pointId) return;
+  try {
+    await deleteDoc(doc(db, 'restorePoints', pointId));
+    console.log(`[Firestore] Ponto de Restauração ${pointId} excluído com sucesso.`);
+  } catch (error) {
+    console.warn('[Firestore] Falha ao excluir Ponto de Restauração no Firestore:', error);
+  }
+}
+
+/**
+ * Inscreve um ouvinte em tempo real para os Pontos de Restauração
+ */
+export function subscribeToRestorePoints(onUpdate: (points: RestorePoint[]) => void): () => void {
+  if (!db) return () => {};
+  try {
+    const pointsCol = collection(db, 'restorePoints');
+    return onSnapshot(
+      pointsCol,
+      (snapshot) => {
+        const list: RestorePoint[] = [];
+        snapshot.forEach((d) => {
+          const data = d.data();
+          if (data) {
+            list.push({
+              ...data,
+              id: data.id || d.id,
+            } as RestorePoint);
+          }
+        });
+        // Ordena por data decrescente (mais recente no topo)
+        list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        onUpdate(list);
+      },
+      (err) => {
+        console.warn('[Firestore] Listener de Pontos de Restauração offline/erro:', err);
+      }
+    );
+  } catch (err) {
+    console.warn('[Firestore] Falha ao registrar listener de Pontos de Restauração:', err);
     return () => {};
   }
 }
