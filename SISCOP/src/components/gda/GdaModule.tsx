@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { CardData, CategoryType } from '../../types';
 import { PrintableCard } from './PrintableCard';
-import { FoldSimulatorModal } from './FoldSimulatorModal';
 import { PrintSheetViewerModal, PrintMode } from './PrintSheetViewerModal';
 import { optimizeImageBase64 } from '../../services/imageOptimizer';
 import { GdaReportsView } from './GdaReportsView';
@@ -89,7 +88,6 @@ export const GdaModule: React.FC = () => {
   // UI state
   const [zoomScale, setZoomScale] = useState<number>(1);
   const [showConfigDrawer, setShowConfigDrawer] = useState<boolean>(false);
-  const [showFoldModal, setShowFoldModal] = useState<boolean>(false);
   const [showPrintSheetModal, setShowPrintSheetModal] = useState<boolean>(false);
   const [printSheetInitialMode, setPrintSheetInitialMode] = useState<PrintMode>('SINGLE_4X');
   const [saveToast, setSaveToast] = useState<boolean>(false);
@@ -120,17 +118,12 @@ export const GdaModule: React.FC = () => {
   const [depDocTypeGda, setDepDocTypeGda] = useState<'CPF' | 'RG'>('CPF');
   const gdaDepDateInputRef = useRef<HTMLInputElement>(null);
 
-  // Menus Dropdown da Barra de Ferramentas (Visual e Impressão em Lote)
-  const [isVisualMenuOpen, setIsVisualMenuOpen] = useState(false);
+  // Menu Dropdown da Barra de Ferramentas (Impressão em Lote)
   const [isBatchMenuOpen, setIsBatchMenuOpen] = useState(false);
-  const visualMenuRef = useRef<HTMLDivElement>(null);
   const batchMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (visualMenuRef.current && !visualMenuRef.current.contains(event.target as Node)) {
-        setIsVisualMenuOpen(false);
-      }
       if (batchMenuRef.current && !batchMenuRef.current.contains(event.target as Node)) {
         setIsBatchMenuOpen(false);
       }
@@ -558,55 +551,20 @@ export const GdaModule: React.FC = () => {
               <span>Nova</span>
             </button>
 
-            {/* Menu Dropdown Visual (Simulador 3D de Dobra e Personalizar Layout) */}
-            <div className="relative" ref={visualMenuRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsVisualMenuOpen((prev) => !prev);
-                  setIsBatchMenuOpen(false);
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
-                  showConfigDrawer || isVisualMenuOpen
-                    ? 'bg-slate-800 text-white border-slate-800'
-                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                }`}
-                title="Visual"
-              >
-                <Sliders className="w-3.5 h-3.5" />
-                <span>Visual</span>
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isVisualMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {isVisualMenuOpen && (
-                <div className="absolute left-0 mt-1 w-52 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsVisualMenuOpen(false);
-                      setShowFoldModal(true);
-                    }}
-                    className="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-100 transition-colors text-left font-medium cursor-pointer"
-                    title="Simular dobra para conferir frente e verso"
-                  >
-                    <RotateCw className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Simulador 3D de Dobra</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsVisualMenuOpen(false);
-                      setShowConfigDrawer(!showConfigDrawer);
-                    }}
-                    className="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-100 transition-colors text-left font-medium cursor-pointer"
-                  >
-                    <Sliders className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Personalizar Layout</span>
-                  </button>
-                </div>
-              )}
-            </div>
+            {/* Botão Direto Personalizar Layout */}
+            <button
+              type="button"
+              onClick={() => setShowConfigDrawer((prev) => !prev)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                showConfigDrawer
+                  ? 'bg-slate-800 text-white border-slate-800'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+              }`}
+              title="Personalizar Layout e Medidas das Carteirinhas"
+            >
+              <Sliders className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Personalizar Layout</span>
+            </button>
 
             {/* Menu Dropdown Impressão em Lote (Executar IL e Limpar IL) */}
             <div className="relative" ref={batchMenuRef}>
@@ -614,7 +572,6 @@ export const GdaModule: React.FC = () => {
                 type="button"
                 onClick={() => {
                   setIsBatchMenuOpen((prev) => !prev);
-                  setIsVisualMenuOpen(false);
                 }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
                   cards.some((c) => c.batchPrintSelected)
