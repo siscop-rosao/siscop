@@ -55,7 +55,10 @@ export type ActionType =
   | 'EXCLUIR_USUARIO_SISTEMA'
   | 'DESTRAVAR_USUARIO_SISTEMA'
   | 'BLOQUEIO_TENTATIVAS_LOGIN'
-  | 'MUDAR_SENHA_USUARIO';
+  | 'MUDAR_SENHA_USUARIO'
+  | 'CRIAR_PONTO_RESTAURACAO'
+  | 'RESTAURAR_PONTO_RESTAURACAO'
+  | 'EXCLUIR_PONTO_RESTAURACAO';
 
 export interface AuditLog {
   id: string;
@@ -155,6 +158,8 @@ export interface CardData {
   neighborhood?: string; // Bairro:
   cep?: string; // CEP:
   linkedPlanNumbers?: string[]; // Vinculação Identificativa (até 5 números de planos já existentes)
+  kinship?: string; // Natureza de vínculo: "Esposa", "Filho", "Irmão", "Sobrinho", "Neto"
+  docJud?: boolean; // Vínculo com Documento Judicial (DOC JUD)
   procuracao?: ProcuracaoData; // Campo PROCURAÇÃO (outorgado, data calendário e autorizações)
   batchPrintSelected?: boolean; // Selecionado para Impressão em Lote (Plano Individual)
   status: 'ATIVO' | 'SUSPENSO' | 'INATIVO';
@@ -306,5 +311,32 @@ export interface BackupRestoreRecord {
     reservations: number;
     popProcedures: number;
     logs: number;
+  };
+}
+
+// Ponto de Restauração da Plataforma (Estilo Windows)
+// Armazena uma cópia fiel da arquitetura, configurações, dados e informações registradas
+export interface RestorePoint {
+  id: string; // Ex: "rp-1730637123456"
+  name: string; // Nome descritivo dado pelo usuário (ex: "Antes da alteração dos Planos Individuais")
+  createdAt: string; // ISO String da data e hora de criação
+  createdBy: string; // Nome do usuário/operador que gerou o ponto
+  description?: string;
+  statistics: {
+    cardsCount: number;
+    reservationsCount: number;
+    popsCount: number;
+    popCount?: number;
+    logsCount: number;
+    usersCount: number;
+  };
+  snapshot: {
+    cards: CardData[];
+    reservations: BarbecueReservation[];
+    popProcedures: PopProcedure[];
+    logs: AuditLog[];
+    users: User[];
+    layoutConfig: CardLayoutConfig;
+    platformSettings: PlatformSettings;
   };
 }
