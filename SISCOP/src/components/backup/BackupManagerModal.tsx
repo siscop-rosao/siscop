@@ -35,6 +35,15 @@ import {
   FolderArchive,
   FileCode,
   Loader2,
+  RotateCcw,
+  Trash2,
+  Sparkles,
+  History,
+  Shield,
+  HardDrive,
+  CheckSquare,
+  Square,
+  Calendar,
 } from 'lucide-react';
 
 interface BackupManagerModalProps {
@@ -58,6 +67,10 @@ export const BackupManagerModal: React.FC<BackupManagerModalProps> = ({ isOpen, 
     lastRestoredBackup,
     syncWithCloudNow,
     isCloudSyncing,
+    restorePoints,
+    createRestorePoint,
+    deleteRestorePoint,
+    restoreFromRestorePoint,
   } = useApp();
 
   const [importStatus, setImportStatus] = useState<{
@@ -75,7 +88,118 @@ export const BackupManagerModal: React.FC<BackupManagerModalProps> = ({ isOpen, 
   const [isZipping, setIsZipping] = useState(false);
   const [zipProgressText, setZipProgressText] = useState<string | null>(null);
 
+  // Estados dos Pontos de Restauração (Estilo Windows)
+  const [restorePointNameInput, setRestorePointNameInput] = useState(() => {
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const aa = String(now.getFullYear()).slice(-2);
+    const hh = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    return `Ponto_Seguro_${dd}${mm}${aa}_${hh}h${min}`;
+  });
+  const [selectedRestorePointId, setSelectedRestorePointId] = useState<string | null>(null);
+  const [isCreatingPoint, setIsCreatingPoint] = useState(false);
+  const [isRestoringPlatform, setIsRestoringPlatform] = useState(false);
+  const [confirmRestoreModalOpen, setConfirmRestoreModalOpen] = useState(false);
+  const [pointToDelete, setPointToDelete] = useState<string | null>(null);
+  const [restorePointFeedback, setRestorePointFeedback] = useState<{
+    type: 'success' | 'error' | null;
+    message: string;
+  }>({ type: null, message: '' });
+
   if (!isOpen) return null;
+
+  const handleGenerateRestorePoint = () => {
+    const name = restorePointNameInput.trim();
+    if (!name) return;
+    setIsCreatingPoint(true);
+    try {
+      const created = createRestorePoint(name);
+      setSelectedRestorePointId(created.id);
+      setRestorePointFeedback({
+        type: 'success',
+        message: `Ponto de Restauração "${created.name}" gerado com sucesso e protegido no banco de dados!`,
+      });
+      const now = new Date();
+      const dd = String(now.getDate()).padStart(2, '0');
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const aa = String(now.getFullYear()).slice(-2);
+      const hh = String(now.getHours()).padStart(2, '0');
+      const min = String(now.getMinutes()).padStart(2, '0');
+      setRestorePointNameInput(`Ponto_Seguro_${dd}${mm}${aa}_${hh}h${min}`);
+      setTimeout(() => setRestorePointFeedback({ type: null, message: '' }), 7000);
+    } catch (err) {
+      console.error(err);
+      setRestorePointFeedback({
+        type: 'error',
+        message: 'Falha ao gerar o Ponto de Restauração. Verifique o console.',
+      });
+    } finally {
+      setIsCreatingPoint(false);
+    }
+  };
+
+  const handleSelectRestorePoint = (id: string) => {
+    setSelectedRestorePointId((prev) => (prev === id ? null : id));
+  };
+
+  const handleConfirmRestorePlatform = async () => {
+    if (!selectedRestorePointId) return;
+    setIsRestoringPlatform(true);
+    try {
+      const result = await restoreFromRestorePoint(selectedRestorePointId);
+      if (result.success) {
+        setRestorePointFeedback({
+          type: 'success',
+          message: result.message,
+        });
+        setConfirmRestoreModalOpen(false);
+      } else {
+        setRestorePointFeedback({
+          type: 'error',
+          message: result.message,
+        });
+      }
+      setTimeout(() => setRestorePointFeedback({ type: null, message: '' }), 9000);
+    } catch (err) {
+      console.error(err);
+      setRestorePointFeedback({
+        type: 'error',
+        message: 'Ocorreu um erro inesperado ao executar a restauração da plataforma.',
+      });
+    } finally {
+      setIsRestoringPlatform(false);
+    }
+  };
+
+  const handleDeleteRestorePoint = (id: string) => {
+    deleteRestorePoint(id);
+    if (selectedRestorePointId === id) {
+      setSelectedRestorePointId(null);
+    }
+    setPointToDelete(null);
+    setRestorePointFeedback({
+      type: 'success',
+      message: 'Ponto de restauração removido do banco de dados.',
+    });
+    setTimeout(() => setRestorePointFeedback({ type: null, message: '' }), 4000);
+  };
+
+  const handleDownloadSinglePointJson = (point: any) => {
+    const filename = `Ponto_Restauracao_${point.name.replace(/[^a-zA-Z0-9_-]/g, '_')}_${point.id}.json`;
+    const blob = new Blob([JSON.stringify(point, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setDownloadSuccessToast(`Cópia do Ponto de Restauração salva com sucesso: ${filename}`);
+    setTimeout(() => setDownloadSuccessToast(null), 5000);
+  };
 
   const handleCopyFilename = (filename: string, field: 'gen' | 'res') => {
     navigator.clipboard.writeText(filename);
@@ -927,6 +1051,389 @@ export const BackupManagerModal: React.FC<BackupManagerModalProps> = ({ isOpen, 
               </button>
             </div>
           </div>
+
+          {/* ========================================================================= */}
+          {/* SEÇÃO PONTO DE RESTAURAÇÃO DA PLATAFORMA (ESTILO WINDOWS RESTORE POINT)     */}
+          {/* ========================================================================= */}
+          <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-blue-950 text-white rounded-2xl p-6 border-2 border-indigo-700/60 shadow-xl space-y-5">
+            {/* Cabeçalho */}
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-indigo-700/50 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-md border border-blue-400/30">
+                  <RotateCcw className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-black tracking-wide text-white">
+                      Ponto de Restauração da Plataforma
+                    </h3>
+                    <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2.5 py-0.5 rounded-full border border-blue-400/40 font-bold uppercase tracking-wider">
+                      Estilo Windows
+                    </span>
+                  </div>
+                  <p className="text-xs text-indigo-200 mt-0.5">
+                    Gera e salva no próprio banco de dados uma cópia fiel da plataforma (estrutura, cadastros, reservas, POPs, layout e configurações) para restauração imediata caso ocorra qualquer imprevisto.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 text-[11px] bg-indigo-950/80 px-3 py-1.5 rounded-xl border border-indigo-700/60 text-indigo-300">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Armazenamento no Banco de Dados & Firestore</span>
+              </div>
+            </div>
+
+            {/* Mensagem de Feedback */}
+            {restorePointFeedback && restorePointFeedback.message && (
+              <div
+                className={`p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2.5 border shadow-sm ${
+                  restorePointFeedback.type === 'success'
+                    ? 'bg-emerald-950/90 text-emerald-200 border-emerald-600'
+                    : 'bg-rose-950/90 text-rose-200 border-rose-600'
+                }`}
+              >
+                {restorePointFeedback.type === 'success' ? (
+                  <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                )}
+                <span>{restorePointFeedback.message}</span>
+              </div>
+            )}
+
+            {/* Campo para Gerar Novo Ponto de Restauração */}
+            <div className="bg-slate-900/80 border border-indigo-800/80 rounded-xl p-4 space-y-3 shadow-inner">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-indigo-200 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Criar Novo Ponto de Restauração</span>
+                </label>
+                <span className="text-[11px] text-slate-400">
+                  Total de associados a serem capturados:{' '}
+                  <strong className="text-white">{cards.length}</strong>
+                </span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={restorePointNameInput}
+                    onChange={(e) => setRestorePointNameInput(e.target.value)}
+                    placeholder="Dê um nome para este Ponto de Restauração (ex: Antes de atualizar planos)..."
+                    className="w-full bg-slate-950/90 border border-indigo-700/70 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 text-white placeholder-slate-500 text-xs rounded-xl px-3.5 py-2.5 font-medium transition-all"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleGenerateRestorePoint}
+                  disabled={isCreatingPoint || !restorePointNameInput.trim()}
+                  className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all active:scale-[0.98] cursor-pointer shrink-0"
+                >
+                  {isCreatingPoint ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Gerando Ponto...</span>
+                    </>
+                  ) : (
+                    <>
+                      <HardDrive className="w-4 h-4 text-blue-200" />
+                      <span>Gerar Ponto de Restauração</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <p className="text-[11px] text-slate-400 leading-normal">
+                Dê um nome descritivo para identificar facilmente a ocasião (ex:{' '}
+                <em className="text-indigo-300">"Antes da melhoria dos vínculos"</em> ou{' '}
+                <em className="text-indigo-300">"Ponto de Segurança 03/11"</em>).
+              </p>
+            </div>
+
+            {/* Histórico dos Pontos de Restauração (Com Checkbox) */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <History className="w-4 h-4 text-indigo-400" />
+                  <h4 className="text-xs font-bold text-indigo-200 uppercase tracking-wider">
+                    Histórico dos Pontos de Restauração ({restorePoints.length})
+                  </h4>
+                </div>
+                <span className="text-[11px] text-indigo-300">
+                  Marque o checkbox do ponto desejado para restaurar
+                </span>
+              </div>
+
+              {restorePoints.length === 0 ? (
+                <div className="bg-slate-900/60 border border-dashed border-indigo-800/60 rounded-xl p-6 text-center space-y-2">
+                  <RotateCcw className="w-8 h-8 text-indigo-500/40 mx-auto" />
+                  <p className="text-xs font-semibold text-slate-300">
+                    Nenhum Ponto de Restauração registrado ainda no banco de dados
+                  </p>
+                  <p className="text-[11px] text-slate-500 max-w-md mx-auto">
+                    Digite um nome no campo acima e clique em{' '}
+                    <strong className="text-indigo-300">"Gerar Ponto de Restauração"</strong> para salvar o seu primeiro snapshot seguro.
+                  </p>
+                </div>
+              ) : (
+                <div className="border border-indigo-800/60 rounded-xl overflow-hidden bg-slate-950/60 shadow-inner max-h-72 overflow-y-auto divide-y divide-indigo-900/40">
+                  {restorePoints.map((point) => {
+                    const isSelected = selectedRestorePointId === point.id;
+                    return (
+                      <div
+                        key={point.id}
+                        onClick={() => handleSelectRestorePoint(point.id)}
+                        className={`p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 cursor-pointer transition-colors ${
+                          isSelected
+                            ? 'bg-blue-950/70 border-l-4 border-l-blue-400'
+                            : 'hover:bg-slate-900/80 border-l-4 border-l-transparent'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          {/* Checkbox */}
+                          <div className="pt-0.5 shrink-0">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleSelectRestorePoint(point.id)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-4 h-4 rounded border-indigo-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            />
+                          </div>
+
+                          <div className="space-y-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-bold text-xs text-white truncate" title={point.name}>
+                                {point.name}
+                              </span>
+                              {isSelected && (
+                                <span className="text-[10px] bg-blue-600 text-white font-bold px-2 py-0.5 rounded-full">
+                                  ✓ Selecionado para Restauração
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
+                              <span className="flex items-center gap-1 font-mono text-slate-300">
+                                <Clock className="w-3 h-3 text-indigo-400" />
+                                {formatBackupDate(point.createdAt)}
+                              </span>
+                              <span>• Por: <strong className="text-slate-200">{point.createdBy}</strong></span>
+                            </div>
+
+                            {/* Badges de estatística capturadas no snapshot */}
+                            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                              <span className="text-[10px] bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded border border-indigo-800">
+                                {point.statistics.cardsCount} associados
+                              </span>
+                              <span className="text-[10px] bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded border border-indigo-800">
+                                {point.statistics.reservationsCount} reservas
+                              </span>
+                              <span className="text-[10px] bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded border border-indigo-800">
+                                {point.statistics.popsCount} POPs
+                              </span>
+                              <span className="text-[10px] bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded border border-indigo-800">
+                                Layout & Config
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Botões de Ação do Ponto */}
+                        <div
+                          className="flex items-center gap-1.5 shrink-0 self-end sm:self-center"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadSinglePointJson(point)}
+                            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg border border-slate-700 transition-colors cursor-pointer"
+                            title="Baixar cópia individual deste ponto de restauração em JSON (.json)"
+                          >
+                            <Download className="w-3.5 h-3.5 text-blue-400" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPointToDelete(point.id)}
+                            className="p-1.5 bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 rounded-lg border border-slate-700 hover:border-rose-800 transition-colors cursor-pointer"
+                            title="Excluir este ponto de restauração"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* BARRA DE AÇÃO PRINCIPAL: RESTAURAR PLATAFORMA */}
+            <div className="bg-slate-950/80 border border-indigo-800/80 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
+              <div className="text-xs text-indigo-200">
+                {selectedRestorePointId ? (
+                  (() => {
+                    const pt = restorePoints.find((p) => p.id === selectedRestorePointId);
+                    return (
+                      <div className="space-y-0.5">
+                        <div className="text-white font-bold flex items-center gap-1.5">
+                          <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <span>Ponto Selecionado: "{pt?.name}"</span>
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          Data do Ponto: {pt ? formatBackupDate(pt.createdAt) : ''} • Contém {pt?.statistics.cardsCount} associados e toda a arquitetura da plataforma.
+                        </div>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div className="text-slate-400 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>Selecione um ponto de restauração acima pelo <strong>checkbox</strong> para habilitar a restauração.</span>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setConfirmRestoreModalOpen(true)}
+                disabled={!selectedRestorePointId || isRestoringPlatform}
+                className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all active:scale-[0.98] cursor-pointer shrink-0 uppercase tracking-wide"
+              >
+                {isRestoringPlatform ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    <span>Restaurando Plataforma...</span>
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="w-4 h-4 text-white" />
+                    <span>Restaurar Plataforma</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Modal de Confirmação de Restauração */}
+          {confirmRestoreModalOpen && selectedRestorePointId && (() => {
+            const pt = restorePoints.find((p) => p.id === selectedRestorePointId);
+            return (
+              <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+                <div className="bg-slate-900 border border-indigo-700/80 rounded-2xl p-6 max-w-lg w-full text-white shadow-2xl space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-base text-white">
+                        Confirmar Restauração da Plataforma
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Ação de alta relevância com impacto sistêmico
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-xs space-y-2 text-slate-300">
+                    <p>
+                      Você está prestes a restaurar toda a plataforma SISCOP para o estado exato registrado no seguinte Ponto de Restauração:
+                    </p>
+                    <div className="bg-indigo-950/60 border border-indigo-800/80 rounded-lg p-3 space-y-1">
+                      <div className="font-bold text-white text-sm">
+                        "{pt?.name}"
+                      </div>
+                      <div className="text-[11px] text-indigo-300 font-mono">
+                        Data e Horário: {pt ? formatBackupDate(pt.createdAt) : ''}
+                      </div>
+                      <div className="text-[11px] text-slate-400">
+                        {pt?.statistics.cardsCount} associados, {pt?.statistics.reservationsCount} reservas, {pt?.statistics.popsCount} POPs e configurações originais.
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-amber-300 font-medium">
+                      ⚠️ Qualquer alteração ou cadastro inserido após a data deste ponto será substituído pelo estado contido neste snapshot.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmRestoreModalOpen(false)}
+                      disabled={isRestoringPlatform}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmRestorePlatform}
+                      disabled={isRestoringPlatform}
+                      className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-md transition-all cursor-pointer"
+                    >
+                      {isRestoringPlatform ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-white" />
+                          <span>Restaurando Plataforma...</span>
+                        </>
+                      ) : (
+                        <>
+                          <RotateCcw className="w-4 h-4 text-white" />
+                          <span>Confirmar Restauração Completa</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Modal de Confirmação de Exclusão de Ponto */}
+          {pointToDelete && (() => {
+            const pt = restorePoints.find((p) => p.id === pointToDelete);
+            return (
+              <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+                <div className="bg-slate-900 border border-rose-800/80 rounded-2xl p-6 max-w-md w-full text-white shadow-2xl space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-rose-500/20 text-rose-400 rounded-xl border border-rose-500/30">
+                      <Trash2 className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-sm text-white">
+                        Excluir Ponto de Restauração
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Remover snapshot permanente do banco de dados
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-300">
+                    Deseja realmente remover o ponto de restauração <strong className="text-white">"{pt?.name}"</strong>? Esta ação não pode ser desfeita.
+                  </p>
+
+                  <div className="flex items-center justify-end gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setPointToDelete(null)}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteRestorePoint(pointToDelete)}
+                      className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Excluir Ponto
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* ================= MODAL FOOTER ================= */}
