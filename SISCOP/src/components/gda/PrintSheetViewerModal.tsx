@@ -814,102 +814,108 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
                 transformOrigin: 'center center',
               }}
             >
-              {currentColumns.map((col, idx) => (
-                <div
-                  key={idx}
-                  className="relative flex items-center justify-center border-0 overflow-visible shrink-0"
-                  style={{
-                    width: `${cardHeightMm}mm`,
-                    height: `${cardTotalWidthMm}mm`,
-                    marginLeft: idx > 0 ? '-1px' : '0',
-                  }}
-                >
+              {currentColumns.map((col, idx) => {
+                const isColEmpty = !col.leftCard && !col.rightCard;
+
+                return (
                   <div
+                    key={idx}
+                    className="relative flex items-center justify-center border-0 overflow-visible shrink-0"
                     style={{
-                      transform: 'rotate(-90deg)',
-                      transformOrigin: 'center center',
-                      width: `${cardTotalWidthMm}mm`,
-                      height: `${cardHeightMm}mm`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
+                      width: `${cardHeightMm}mm`,
+                      height: `${cardTotalWidthMm}mm`,
+                      marginLeft: idx > 0 && !isColEmpty ? '-1px' : '0',
                     }}
                   >
                     <div
-                      className="flex items-center box-border select-none"
                       style={{
+                        transform: 'rotate(-90deg)',
+                        transformOrigin: 'center center',
                         width: `${cardTotalWidthMm}mm`,
                         height: `${cardHeightMm}mm`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
                       }}
                     >
-                      {/* FACE 1 (ESQUERDA) */}
                       <div
+                        className="flex items-center box-border select-none"
                         style={{
-                          width: `${printCardConfig.cardWidthMm}mm`,
-                          height: `${cardHeightMm}mm`,
-                          minWidth: `${printCardConfig.cardWidthMm}mm`,
-                          minHeight: `${cardHeightMm}mm`,
-                        }}
-                        className="relative flex items-center justify-center overflow-hidden"
-                      >
-                        {col.leftCard ? (
-                          <PrintableCard
-                            card={col.leftCard}
-                            config={printCardConfig}
-                            renderOnly={sheetSide === 'FRONT' ? 'front' : 'back'}
-                            showFoldGuideline={false}
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-white border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-300 text-[10px]">
-                            <span className="font-mono text-[9px] text-slate-400">Espaço Vazio</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* LINHA DE CORTE CENTRAL ENTRE AS DUAS CARTEIRINHAS (4mm) */}
-                      <div
-                        className="flex items-center justify-center select-none"
-                        style={{
-                          width: '4mm',
+                          width: `${cardTotalWidthMm}mm`,
                           height: `${cardHeightMm}mm`,
                         }}
                       >
-                        <div className="border-l-2 border-dashed border-slate-400 h-full flex items-center justify-center">
-                          <div className="bg-slate-100 text-slate-500 text-[7px] font-mono px-0.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap shadow-xs">
-                            <Scissors className="w-2 h-2" />
-                            <span>Corte</span>
-                          </div>
+                        {/* FACE 1 (ESQUERDA) */}
+                        <div
+                          style={{
+                            width: `${printCardConfig.cardWidthMm}mm`,
+                            height: `${cardHeightMm}mm`,
+                            minWidth: `${printCardConfig.cardWidthMm}mm`,
+                            minHeight: `${cardHeightMm}mm`,
+                          }}
+                          className="relative flex items-center justify-center overflow-visible"
+                        >
+                          {col.leftCard ? (
+                            <PrintableCard
+                              card={col.leftCard}
+                              config={printCardConfig}
+                              renderOnly={sheetSide === 'FRONT' ? 'front' : 'back'}
+                              showFoldGuideline={false}
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-transparent border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-300 text-[10px]">
+                              <span className="font-mono text-[9px] text-slate-400">Espaço Vazio</span>
+                            </div>
+                          )}
                         </div>
-                      </div>
 
-                      {/* FACE 2 (DIREITA) */}
-                      <div
-                        style={{
-                          width: `${printCardConfig.cardWidthMm}mm`,
-                          height: `${cardHeightMm}mm`,
-                          minWidth: `${printCardConfig.cardWidthMm}mm`,
-                          minHeight: `${cardHeightMm}mm`,
-                        }}
-                        className="relative flex items-center justify-center overflow-hidden"
-                      >
-                        {col.rightCard ? (
-                          <PrintableCard
-                            card={col.rightCard}
-                            config={printCardConfig}
-                            renderOnly={sheetSide === 'FRONT' ? 'front' : 'back'}
-                            showFoldGuideline={false}
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-white border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-300 text-[10px]">
-                            <span className="font-mono text-[9px] text-slate-400">Espaço Vazio</span>
-                          </div>
-                        )}
+                        {/* LINHA DE CORTE CENTRAL ENTRE AS DUAS CARTEIRINHAS (4mm) */}
+                        <div
+                          className="flex items-center justify-center select-none"
+                          style={{
+                            width: '4mm',
+                            height: `${cardHeightMm}mm`,
+                          }}
+                        >
+                          {(col.leftCard || col.rightCard) && (
+                            <div className="border-l-2 border-dashed border-slate-400 h-full flex items-center justify-center">
+                              <div className="bg-slate-100 text-slate-500 text-[7px] font-mono px-0.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap shadow-xs">
+                                <Scissors className="w-2 h-2" />
+                                <span>Corte</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* FACE 2 (DIREITA) */}
+                        <div
+                          style={{
+                            width: `${printCardConfig.cardWidthMm}mm`,
+                            height: `${cardHeightMm}mm`,
+                            minWidth: `${printCardConfig.cardWidthMm}mm`,
+                            minHeight: `${cardHeightMm}mm`,
+                          }}
+                          className="relative flex items-center justify-center overflow-visible"
+                        >
+                          {col.rightCard ? (
+                            <PrintableCard
+                              card={col.rightCard}
+                              config={printCardConfig}
+                              renderOnly={sheetSide === 'FRONT' ? 'front' : 'back'}
+                              showFoldGuideline={false}
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-transparent border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-300 text-[10px]">
+                              <span className="font-mono text-[9px] text-slate-400">Espaço Vazio</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -933,94 +939,101 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
                       transformOrigin: 'center center',
                     }}
                   >
-                    {pageCols.map((col, slotIdx) => (
-                      <div
-                        key={slotIdx}
-                        className="relative flex items-center justify-center border-0 overflow-visible shrink-0"
-                        style={{
-                          width: `${cardHeightMm}mm`,
-                          height: `${cardTotalWidthMm}mm`,
-                          marginLeft: slotIdx > 0 ? '-1px' : '0',
-                        }}
-                      >
+                    {pageCols.map((col, slotIdx) => {
+                      const isColEmpty = !col.leftCard && !col.rightCard;
+
+                      return (
                         <div
+                          key={slotIdx}
+                          className="relative flex items-center justify-center border-0 overflow-visible shrink-0"
                           style={{
-                            transform: 'rotate(-90deg)',
-                            transformOrigin: 'center center',
-                            width: `${cardTotalWidthMm}mm`,
-                            height: `${cardHeightMm}mm`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
+                            width: `${cardHeightMm}mm`,
+                            height: `${cardTotalWidthMm}mm`,
+                            marginLeft: slotIdx > 0 && !isColEmpty ? '-1px' : '0',
+                            visibility: isColEmpty ? 'hidden' : 'visible',
                           }}
                         >
                           <div
-                            className="flex items-center box-border select-none"
                             style={{
+                              transform: 'rotate(-90deg)',
+                              transformOrigin: 'center center',
                               width: `${cardTotalWidthMm}mm`,
                               height: `${cardHeightMm}mm`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
                             }}
                           >
-                            {/* Face 1 */}
                             <div
+                              className="flex items-center box-border select-none"
                               style={{
-                                width: `${printCardConfig.cardWidthMm}mm`,
-                                height: `${cardHeightMm}mm`,
-                              }}
-                              className="relative flex items-center justify-center overflow-hidden"
-                            >
-                              {col.leftCard ? (
-                                <PrintableCard
-                                  card={col.leftCard}
-                                  config={printCardConfig}
-                                  renderOnly={sheetSide === 'FRONT' ? 'front' : 'back'}
-                                  showFoldGuideline={false}
-                                />
-                              ) : (
-                                <div className="w-full h-full bg-white" />
-                              )}
-                            </div>
-
-                            {/* Linha Divisória de Corte */}
-                            <div
-                              className="flex items-center justify-center select-none"
-                              style={{
-                                width: '4mm',
+                                width: `${cardTotalWidthMm}mm`,
                                 height: `${cardHeightMm}mm`,
                               }}
                             >
-                              <div className="border-l-2 border-dashed border-slate-400 h-full flex items-center justify-center">
-                                <div className="bg-slate-100 text-slate-500 text-[7px] font-mono px-0.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap shadow-xs">
-                                  <Scissors className="w-2 h-2" />
-                                  <span>Corte</span>
-                                </div>
+                              {/* Face 1 */}
+                              <div
+                                style={{
+                                  width: `${printCardConfig.cardWidthMm}mm`,
+                                  height: `${cardHeightMm}mm`,
+                                }}
+                                className="relative flex items-center justify-center overflow-visible"
+                              >
+                                {col.leftCard ? (
+                                  <PrintableCard
+                                    card={col.leftCard}
+                                    config={printCardConfig}
+                                    renderOnly={sheetSide === 'FRONT' ? 'front' : 'back'}
+                                    showFoldGuideline={false}
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-transparent" />
+                                )}
                               </div>
-                            </div>
 
-                            {/* Face 2 */}
-                            <div
-                              style={{
-                                width: `${printCardConfig.cardWidthMm}mm`,
-                                height: `${cardHeightMm}mm`,
-                              }}
-                              className="relative flex items-center justify-center overflow-hidden"
-                            >
-                              {col.rightCard ? (
-                                <PrintableCard
-                                  card={col.rightCard}
-                                  config={printCardConfig}
-                                  renderOnly={sheetSide === 'FRONT' ? 'front' : 'back'}
-                                  showFoldGuideline={false}
-                                />
-                              ) : (
-                                <div className="w-full h-full bg-white" />
-                              )}
+                              {/* Linha Divisória de Corte */}
+                              <div
+                                className="flex items-center justify-center select-none"
+                                style={{
+                                  width: '4mm',
+                                  height: `${cardHeightMm}mm`,
+                                }}
+                              >
+                                {col.leftCard && col.rightCard && (
+                                  <div className="border-l-2 border-dashed border-slate-400 h-full flex items-center justify-center">
+                                    <div className="bg-slate-100 text-slate-500 text-[7px] font-mono px-0.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap shadow-xs">
+                                      <Scissors className="w-2 h-2" />
+                                      <span>Corte</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Face 2 */}
+                              <div
+                                style={{
+                                  width: `${printCardConfig.cardWidthMm}mm`,
+                                  height: `${cardHeightMm}mm`,
+                                }}
+                                className="relative flex items-center justify-center overflow-visible"
+                              >
+                                {col.rightCard ? (
+                                  <PrintableCard
+                                    card={col.rightCard}
+                                    config={printCardConfig}
+                                    renderOnly={sheetSide === 'FRONT' ? 'front' : 'back'}
+                                    showFoldGuideline={false}
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-transparent" />
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
