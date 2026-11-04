@@ -81,6 +81,11 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
   const [sheetSide, setSheetSide] = useState<'FRONT' | 'BACK'>('FRONT');
   const [duplexFlipMode, setDuplexFlipMode] = useState<'HORIZONTAL' | 'DIRECT'>('HORIZONTAL');
 
+  // Posição da Face Traseira (FT) na impressão de 1 única carteirinha (SINGLE_1X):
+  // 'Y' (padrão): Posiciona a FT no slot [Y] (superior/lado oposto) para alinhar perfeitamente com a FP [X] ao virar a folha
+  // 'X': Mantém a FT no mesmo slot [X] (inferior)
+  const [singleVersoSlot, setSingleVersoSlot] = useState<'Y' | 'X'>('Y');
+
   const [currentPage, setCurrentPage] = useState(0);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isDownloadingPng, setIsDownloadingPng] = useState(false);
@@ -126,6 +131,37 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
 
   // Função para retornar as 4 colunas da folha (Frente ou Verso com alinhamento duplex)
   const getPageColumns = (pageIndex: number, side: 'FRONT' | 'BACK'): ColumnSlot[] => {
+    // Tratamento específico para impressão de 1 única carteirinha (SINGLE_1X):
+    // Na Frente (FP), a carteirinha fica no Slot [X] (leftCard).
+    // No Verso (FT), o usuário pode alternar entre a Posição [Y] (rightCard - alinhado) ou Posição [X].
+    if (printMode === 'SINGLE_1X') {
+      const card = activeCard || (allCards.length > 0 ? allCards[0] : null);
+      if (side === 'FRONT') {
+        return [
+          { leftCard: card, rightCard: null },
+          { leftCard: null, rightCard: null },
+          { leftCard: null, rightCard: null },
+          { leftCard: null, rightCard: null },
+        ];
+      } else {
+        if (singleVersoSlot === 'Y') {
+          return [
+            { leftCard: null, rightCard: card },
+            { leftCard: null, rightCard: null },
+            { leftCard: null, rightCard: null },
+            { leftCard: null, rightCard: null },
+          ];
+        } else {
+          return [
+            { leftCard: card, rightCard: null },
+            { leftCard: null, rightCard: null },
+            { leftCard: null, rightCard: null },
+            { leftCard: null, rightCard: null },
+          ];
+        }
+      }
+    }
+
     const raw = cardsList.slice(pageIndex * CARDS_PER_SHEET, (pageIndex + 1) * CARDS_PER_SHEET);
     const pCards: (CardData | null)[] = [
       raw[0] || null,
@@ -659,8 +695,8 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
             </button>
           </div>
 
-          {/* Se estiver no VERSO, exibir o botão de modo de alinhamento */}
-          {sheetSide === 'BACK' && (
+          {/* Se estiver no VERSO e não for 1 carteirinha única, exibir o botão de modo de alinhamento */}
+          {sheetSide === 'BACK' && printMode !== 'SINGLE_1X' && (
             <button
               type="button"
               onClick={() => setDuplexFlipMode((m) => (m === 'HORIZONTAL' ? 'DIRECT' : 'HORIZONTAL'))}
@@ -673,6 +709,39 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
                 {duplexFlipMode === 'HORIZONTAL' ? 'Horizontal (Padrão Livro)' : 'Direto'}
               </strong>
             </button>
+          )}
+
+          {/* Botão para posicionar a Face Traseira (FT) na Posição [Y] ou [X] na impressão de 1 Carteirinha */}
+          {printMode === 'SINGLE_1X' && (
+            <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-700 shrink-0">
+              <span className="text-[11px] font-bold text-slate-300 px-2 flex items-center gap-1">
+                Posição do Verso (FT):
+              </span>
+              <button
+                type="button"
+                onClick={() => setSingleVersoSlot('Y')}
+                className={`px-2.5 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                  singleVersoSlot === 'Y'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+                title="Posiciona a Face Traseira (FT) na Posição [Y] da folha para coincidir com a Face Principal [X] ao virar a folha"
+              >
+                <span>Posição [Y] (Alinhado)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSingleVersoSlot('X')}
+                className={`px-2.5 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                  singleVersoSlot === 'X'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+                title="Posiciona a Face Traseira (FT) na Posição [X] da folha"
+              >
+                <span>Posição [X]</span>
+              </button>
+            </div>
           )}
 
           <div className="h-5 w-px bg-slate-700 mx-1 hidden sm:block" />
@@ -846,7 +915,7 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
                           height: `${cardHeightMm}mm`,
                         }}
                       >
-                        {/* FACE 1 (ESQUERDA) */}
+                        {/* FACE 1 (ESQUERDA / POSIÇÃO [X]) */}
                         <div
                           style={{
                             width: `${printCardConfig.cardWidthMm}mm`,
@@ -856,6 +925,11 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
                           }}
                           className="relative flex items-center justify-center overflow-visible"
                         >
+                          {printMode === 'SINGLE_1X' && (
+                            <span className="absolute -top-2 left-2 bg-slate-900/90 text-amber-300 font-mono font-bold text-[9px] px-1.5 py-0.5 rounded border border-slate-700 shadow-xs z-30 select-none">
+                              Posição [X]
+                            </span>
+                          )}
                           {col.leftCard ? (
                             <PrintableCard
                               card={col.leftCard}
@@ -864,8 +938,19 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
                               showFoldGuideline={false}
                             />
                           ) : (
-                            <div className="w-full h-full bg-transparent border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-300 text-[10px]">
-                              <span className="font-mono text-[9px] text-slate-400">Espaço Vazio</span>
+                            <div className="w-full h-full bg-transparent border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 text-[10px] p-2 text-center">
+                              {printMode === 'SINGLE_1X' ? (
+                                <>
+                                  <span className="font-mono font-bold text-[10px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 mb-1">
+                                    Posição [X]
+                                  </span>
+                                  <span className="text-[9px] text-slate-500">
+                                    {sheetSide === 'BACK' ? 'Vazio no Verso (FP está no Lado A)' : 'Espaço Vazio'}
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="font-mono text-[9px] text-slate-400">Espaço Vazio</span>
+                              )}
                             </div>
                           )}
                         </div>
@@ -888,7 +973,7 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
                           )}
                         </div>
 
-                        {/* FACE 2 (DIREITA) */}
+                        {/* FACE 2 (DIREITA / POSIÇÃO [Y]) */}
                         <div
                           style={{
                             width: `${printCardConfig.cardWidthMm}mm`,
@@ -898,6 +983,11 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
                           }}
                           className="relative flex items-center justify-center overflow-visible"
                         >
+                          {printMode === 'SINGLE_1X' && (
+                            <span className="absolute -top-2 left-2 bg-slate-900/90 text-emerald-300 font-mono font-bold text-[9px] px-1.5 py-0.5 rounded border border-slate-700 shadow-xs z-30 select-none">
+                              Posição [Y]
+                            </span>
+                          )}
                           {col.rightCard ? (
                             <PrintableCard
                               card={col.rightCard}
@@ -906,8 +996,19 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
                               showFoldGuideline={false}
                             />
                           ) : (
-                            <div className="w-full h-full bg-transparent border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-300 text-[10px]">
-                              <span className="font-mono text-[9px] text-slate-400">Espaço Vazio</span>
+                            <div className="w-full h-full bg-transparent border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 text-[10px] p-2 text-center">
+                              {printMode === 'SINGLE_1X' ? (
+                                <>
+                                  <span className="font-mono font-bold text-[10px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 mb-1">
+                                    Posição [Y]
+                                  </span>
+                                  <span className="text-[9px] text-slate-500">
+                                    {sheetSide === 'FRONT' ? 'Vazio na Frente (FT sairá aqui no Lado B)' : 'Espaço Vazio'}
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="font-mono text-[9px] text-slate-400">Espaço Vazio</span>
+                              )}
                             </div>
                           )}
                         </div>
