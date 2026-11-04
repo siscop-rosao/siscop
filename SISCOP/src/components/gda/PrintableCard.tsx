@@ -87,15 +87,19 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
       {renderOnly !== 'back' && (
         <div
           id={`card-front-${card.id}`}
-          className="relative bg-white text-slate-900 overflow-hidden box-border pt-1 px-3 pb-1.5 flex flex-col justify-between print:shadow-none"
+          className="relative bg-white text-slate-900 overflow-hidden box-border pt-1 px-3 pb-1 flex flex-col justify-between print:shadow-none"
           style={{
             width: cardWidthStyle,
             height: cardHeightStyle,
             minWidth: cardWidthStyle,
             minHeight: cardHeightStyle,
+            boxSizing: 'border-box',
             border: config.showBorder
               ? `${config.borderWidth || 1}px solid ${config.borderColor || '#1e293b'}`
               : '1px solid #cbd5e1',
+            borderBottom: config.showBorder
+              ? `${Math.max(1.5, config.borderWidth || 1)}px solid ${config.borderColor || '#1e293b'}`
+              : '1.5px solid #1e293b',
           backgroundColor: config.cardBackground,
           fontFamily:
             config.fontFamily === 'Courier'
@@ -260,7 +264,7 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
         </div>
 
         {/* RODAPÉ: Linha de Assinatura do Diretor */}
-        <div className="pt-2 border-t border-slate-200 mt-auto flex items-end justify-start">
+        <div className="pt-1.5 border-t border-slate-200 mt-auto flex items-end justify-start">
           <div className="w-[45%] text-center">
             <div className="border-b border-slate-800 w-full mb-0.5" />
             <span className="text-[8.5px] font-semibold text-slate-800 tracking-wide uppercase">
@@ -326,9 +330,13 @@ export const PrintableCard: React.FC<PrintableCardProps> = ({
           height: cardHeightStyle,
           minWidth: cardWidthStyle,
           minHeight: cardHeightStyle,
+          boxSizing: 'border-box',
           border: config.showBorder
             ? `${config.borderWidth || 1}px solid ${config.borderColor || '#1e293b'}`
             : '1px solid #cbd5e1',
+          borderBottom: config.showBorder
+            ? `${Math.max(1.5, config.borderWidth || 1)}px solid ${config.borderColor || '#1e293b'}`
+            : '1.5px solid #1e293b',
           backgroundColor: config.cardBackground,
           fontFamily:
             config.fontFamily === 'Courier'
