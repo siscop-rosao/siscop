@@ -79,7 +79,7 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
   // FRONT: Exibe e imprime as faces principais (com dados e foto), duas por coluna.
   // BACK: Exibe e imprime os versos com dados de pagamento (Ano 2026, 2027, 2028 com Mês e Assinatura).
   const [sheetSide, setSheetSide] = useState<'FRONT' | 'BACK'>('FRONT');
-  const [duplexFlipMode, setDuplexFlipMode] = useState<'HORIZONTAL' | 'DIRECT'>('HORIZONTAL');
+  const [duplexFlipMode, setDuplexFlipMode] = useState<'HORIZONTAL' | 'DIRECT'>('DIRECT');
 
   // Posição da Face Traseira (FT) na impressão de 1 única carteirinha (SINGLE_1X):
   // 'Y' (padrão): Posiciona a FT no slot [Y] (superior/lado oposto) para alinhar perfeitamente com a FP [X] ao virar a folha
@@ -129,79 +129,80 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
     rightCard: CardData | null;
   }
 
-  // Função para retornar as 4 colunas da folha (Frente ou Verso com alinhamento duplex)
+  // Função para retornar as 4 colunas da folha (Frente ou Verso com alinhamento duplex universal)
+  // Regra Fundamental de Alinhamento Frente e Verso:
+  // "Toda FP que existir no lado A da folha, que exista também um FT no lado B da folha,
+  // correspondente ao alinhamento das FP's identificadas no lado A da folha."
   const getPageColumns = (pageIndex: number, side: 'FRONT' | 'BACK'): ColumnSlot[] => {
-    // Tratamento específico para impressão de 1 única carteirinha (SINGLE_1X):
-    // Na Frente (FP), a carteirinha fica no Slot [X] (leftCard).
-    // No Verso (FT), o usuário pode alternar entre a Posição [Y] (rightCard - alinhado) ou Posição [X].
+    // 1. Determina as 4 colunas da Frente (Lado A)
+    let frontCols: ColumnSlot[];
+
     if (printMode === 'SINGLE_1X') {
       const card = activeCard || (allCards.length > 0 ? allCards[0] : null);
-      if (side === 'FRONT') {
-        return [
-          { leftCard: card, rightCard: null },
-          { leftCard: null, rightCard: null },
-          { leftCard: null, rightCard: null },
-          { leftCard: null, rightCard: null },
-        ];
-      } else {
-        if (singleVersoSlot === 'Y') {
-          return [
-            { leftCard: null, rightCard: card },
-            { leftCard: null, rightCard: null },
-            { leftCard: null, rightCard: null },
-            { leftCard: null, rightCard: null },
-          ];
-        } else {
-          return [
-            { leftCard: card, rightCard: null },
-            { leftCard: null, rightCard: null },
-            { leftCard: null, rightCard: null },
-            { leftCard: null, rightCard: null },
-          ];
-        }
-      }
-    }
+      frontCols = [
+        { leftCard: card, rightCard: null }, // Slot [X] = FP, Slot [Y] = vazio
+        { leftCard: null, rightCard: null },
+        { leftCard: null, rightCard: null },
+        { leftCard: null, rightCard: null },
+      ];
+    } else {
+      const raw = cardsList.slice(pageIndex * CARDS_PER_SHEET, (pageIndex + 1) * CARDS_PER_SHEET);
+      const pCards: (CardData | null)[] = [
+        raw[0] || null,
+        raw[1] || null,
+        raw[2] || null,
+        raw[3] || null,
+        raw[4] || null,
+        raw[5] || null,
+        raw[6] || null,
+        raw[7] || null,
+      ];
 
-    const raw = cardsList.slice(pageIndex * CARDS_PER_SHEET, (pageIndex + 1) * CARDS_PER_SHEET);
-    const pCards: (CardData | null)[] = [
-      raw[0] || null,
-      raw[1] || null,
-      raw[2] || null,
-      raw[3] || null,
-      raw[4] || null,
-      raw[5] || null,
-      raw[6] || null,
-      raw[7] || null,
-    ];
-
-    if (side === 'FRONT') {
-      return [
+      frontCols = [
         { leftCard: pCards[0], rightCard: pCards[1] },
         { leftCard: pCards[2], rightCard: pCards[3] },
         { leftCard: pCards[4], rightCard: pCards[5] },
         { leftCard: pCards[6], rightCard: pCards[7] },
       ];
+    }
+
+    if (side === 'FRONT') {
+      return frontCols;
+    }
+
+    // 2. Determina as 4 colunas do Verso (Lado B) correspondendo 100% às FP's do Lado A
+    // Ao virar a folha na impressora, a Posição [X] (inferior) do Lado A vira Posição [Y] (superior) no Lado B,
+    // e a Posição [Y] (superior) do Lado A vira Posição [X] (inferior) no Lado B.
+    // Portanto, em cada coluna correspondente, os slots [X] e [Y] são rigorosamente invertidos (leftCard <-> rightCard).
+
+    // Override manual se o usuário estiver em SINGLE_1X e tiver optado explicitamente por "Posição [X]":
+    if (printMode === 'SINGLE_1X' && singleVersoSlot === 'X') {
+      const card = activeCard || (allCards.length > 0 ? allCards[0] : null);
+      return [
+        { leftCard: card, rightCard: null },
+        { leftCard: null, rightCard: null },
+        { leftCard: null, rightCard: null },
+        { leftCard: null, rightCard: null },
+      ];
+    }
+
+    if (duplexFlipMode === 'HORIZONTAL') {
+      // Giro Horizontal (Giro tipo Livro: Coluna 0 <-> Coluna 3, Coluna 1 <-> Coluna 2)
+      return [
+        { leftCard: frontCols[3].rightCard, rightCard: frontCols[3].leftCard },
+        { leftCard: frontCols[2].rightCard, rightCard: frontCols[2].leftCard },
+        { leftCard: frontCols[1].rightCard, rightCard: frontCols[1].leftCard },
+        { leftCard: frontCols[0].rightCard, rightCard: frontCols[0].leftCard },
+      ];
     } else {
-      // BACK side (Verso)
-      if (duplexFlipMode === 'HORIZONTAL') {
-        // Giro Horizontal (padrão de impressora ao virar a folha de lado como folha de livro):
-        // Coluna 0 na frente corresponde à Coluna 3 no verso (com left/right invertidos);
-        // Coluna 1 na frente corresponde à Coluna 2 no verso (com left/right invertidos).
-        return [
-          { leftCard: pCards[7], rightCard: pCards[6] },
-          { leftCard: pCards[5], rightCard: pCards[4] },
-          { leftCard: pCards[3], rightCard: pCards[2] },
-          { leftCard: pCards[1], rightCard: pCards[0] },
-        ];
-      } else {
-        // Alinhamento direto
-        return [
-          { leftCard: pCards[0], rightCard: pCards[1] },
-          { leftCard: pCards[2], rightCard: pCards[3] },
-          { leftCard: pCards[4], rightCard: pCards[5] },
-          { leftCard: pCards[6], rightCard: pCards[7] },
-        ];
-      }
+      // Alinhamento Direto (Padrão de virada de folha da impressora: Coluna 0 <-> Coluna 0, Coluna 1 <-> Coluna 1)
+      // Cada coluna mapeia diretamente para si mesma, com o slot [X] do Lado A virando slot [Y] no Lado B:
+      return [
+        { leftCard: frontCols[0].rightCard, rightCard: frontCols[0].leftCard },
+        { leftCard: frontCols[1].rightCard, rightCard: frontCols[1].leftCard },
+        { leftCard: frontCols[2].rightCard, rightCard: frontCols[2].leftCard },
+        { leftCard: frontCols[3].rightCard, rightCard: frontCols[3].leftCard },
+      ];
     }
   };
 
@@ -706,7 +707,7 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
               <ArrowLeftRight className="w-3 h-3 text-emerald-400" />
               <span>Giro:</span>
               <strong className="text-emerald-300">
-                {duplexFlipMode === 'HORIZONTAL' ? 'Horizontal (Padrão Livro)' : 'Direto'}
+                {duplexFlipMode === 'DIRECT' ? 'Direto (Padrão Impressora)' : 'Horizontal (Padrão Livro)'}
               </strong>
             </button>
           )}
@@ -925,8 +926,8 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
                           }}
                           className="relative flex items-center justify-center overflow-visible"
                         >
-                          {printMode === 'SINGLE_1X' && (
-                            <span className="absolute -top-2 left-2 bg-slate-900/90 text-amber-300 font-mono font-bold text-[9px] px-1.5 py-0.5 rounded border border-slate-700 shadow-xs z-30 select-none">
+                          {(col.leftCard || col.rightCard) && (
+                            <span className="absolute -top-2 left-2 bg-slate-900/90 text-amber-300 font-mono font-bold text-[8.5px] px-1.5 py-0.5 rounded border border-slate-700 shadow-xs z-30 select-none print:hidden">
                               Posição [X]
                             </span>
                           )}
@@ -938,19 +939,13 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
                               showFoldGuideline={false}
                             />
                           ) : (
-                            <div className="w-full h-full bg-transparent border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 text-[10px] p-2 text-center">
-                              {printMode === 'SINGLE_1X' ? (
-                                <>
-                                  <span className="font-mono font-bold text-[10px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 mb-1">
-                                    Posição [X]
-                                  </span>
-                                  <span className="text-[9px] text-slate-500">
-                                    {sheetSide === 'BACK' ? 'Vazio no Verso (FP está no Lado A)' : 'Espaço Vazio'}
-                                  </span>
-                                </>
-                              ) : (
-                                <span className="font-mono text-[9px] text-slate-400">Espaço Vazio</span>
-                              )}
+                            <div className="w-full h-full bg-transparent border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 text-[10px] p-2 text-center select-none">
+                              <span className="font-mono font-bold text-[10px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 mb-1">
+                                Posição [X]
+                              </span>
+                              <span className="text-[9px] text-slate-500">
+                                {sheetSide === 'BACK' ? 'Vazio no Verso (FP está no Lado A)' : 'Espaço Vazio'}
+                              </span>
                             </div>
                           )}
                         </div>
@@ -983,8 +978,8 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
                           }}
                           className="relative flex items-center justify-center overflow-visible"
                         >
-                          {printMode === 'SINGLE_1X' && (
-                            <span className="absolute -top-2 left-2 bg-slate-900/90 text-emerald-300 font-mono font-bold text-[9px] px-1.5 py-0.5 rounded border border-slate-700 shadow-xs z-30 select-none">
+                          {(col.leftCard || col.rightCard) && (
+                            <span className="absolute -top-2 left-2 bg-slate-900/90 text-emerald-300 font-mono font-bold text-[8.5px] px-1.5 py-0.5 rounded border border-slate-700 shadow-xs z-30 select-none print:hidden">
                               Posição [Y]
                             </span>
                           )}
@@ -996,19 +991,13 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
                               showFoldGuideline={false}
                             />
                           ) : (
-                            <div className="w-full h-full bg-transparent border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 text-[10px] p-2 text-center">
-                              {printMode === 'SINGLE_1X' ? (
-                                <>
-                                  <span className="font-mono font-bold text-[10px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 mb-1">
-                                    Posição [Y]
-                                  </span>
-                                  <span className="text-[9px] text-slate-500">
-                                    {sheetSide === 'FRONT' ? 'Vazio na Frente (FT sairá aqui no Lado B)' : 'Espaço Vazio'}
-                                  </span>
-                                </>
-                              ) : (
-                                <span className="font-mono text-[9px] text-slate-400">Espaço Vazio</span>
-                              )}
+                            <div className="w-full h-full bg-transparent border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 text-[10px] p-2 text-center select-none">
+                              <span className="font-mono font-bold text-[10px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 mb-1">
+                                Posição [Y]
+                              </span>
+                              <span className="text-[9px] text-slate-500">
+                                {sheetSide === 'FRONT' ? 'Vazio na Frente (FT sairá aqui no Lado B)' : 'Espaço Vazio'}
+                              </span>
                             </div>
                           )}
                         </div>
