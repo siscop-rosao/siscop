@@ -29,6 +29,8 @@ import {
   ChevronUp,
   Link2,
   ArrowRight,
+  Filter,
+  Check,
 } from 'lucide-react';
 
 export const GidModule: React.FC = () => {
@@ -62,6 +64,41 @@ export const GidModule: React.FC = () => {
       setSearchTerm(gidSearchTerm);
     }
   }, [gidSearchTerm]);
+
+  // Estados do Menu Filtro (Ajuste 03: Filtrar por Impressos e Fotos)
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const filterMenuRef = useRef<HTMLDivElement>(null);
+  const [printFilter, setPrintFilter] = useState<'ALL' | 'PRINTED' | 'NOT_PRINTED'>('ALL');
+  const [photoFilter, setPhotoFilter] = useState<'ALL' | 'WITH_PHOTO' | 'WITHOUT_PHOTO'>('ALL');
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterMenuRef.current && !filterMenuRef.current.contains(event.target as Node)) {
+        setIsFilterMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Helper: Checar se o cadastro (ou todos os membros do plano familiar) possui foto carregada
+  const checkCardHasPhoto = (c: CardData): boolean => {
+    if (c.category === 'PLANO_FAMILIAR' && c.isTitular) {
+      const family = [c, ...cards.filter((m) => m.familyHeadId === c.id && m.id !== c.id)];
+      return family.length > 0 && family.every((m) => Boolean(m.photoUrl && m.photoUrl.trim()));
+    }
+    return Boolean(c.photoUrl && c.photoUrl.trim());
+  };
+
+  // Helper: Checar se o cadastro (ou plano familiar) está com Confirmação de Impressão marcada
+  const checkCardIsPrinted = (c: CardData): boolean => {
+    if (c.category === 'PLANO_FAMILIAR' && c.isTitular) {
+      if (c.printConfirmed) return true;
+      const family = [c, ...cards.filter((m) => m.familyHeadId === c.id && m.id !== c.id)];
+      return family.length > 0 && family.every((m) => Boolean(m.printConfirmed));
+    }
+    return Boolean(c.printConfirmed);
+  };
 
   // Selected card for notepad modal / drawer
   const [editingCardNotes, setEditingCardNotes] = useState<CardData | null>(null);
@@ -229,6 +266,15 @@ export const GidModule: React.FC = () => {
   const filteredCards = useMemo(() => {
     const list = cards.filter((c) => {
       if (c.category !== gidSubTab) return false;
+
+      // Filtro de Impressão [ I ]
+      if (printFilter === 'PRINTED' && !checkCardIsPrinted(c)) return false;
+      if (printFilter === 'NOT_PRINTED' && checkCardIsPrinted(c)) return false;
+
+      // Filtro de Foto [ F ]
+      if (photoFilter === 'WITH_PHOTO' && !checkCardHasPhoto(c)) return false;
+      if (photoFilter === 'WITHOUT_PHOTO' && checkCardHasPhoto(c)) return false;
+
       if (!searchTerm) return true;
       const term = searchTerm.toLowerCase();
       return (
@@ -246,7 +292,7 @@ export const GidModule: React.FC = () => {
       if (numB !== numA) return numB - numA;
       return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
     });
-  }, [cards, gidSubTab, searchTerm]);
+  }, [cards, gidSubTab, searchTerm, printFilter, photoFilter]);
 
   // In Family Plan, group by titular (sempre ordenados do maior para o menor número de plano)
   const titularsInSubTab = useMemo(() => {
@@ -284,6 +330,19 @@ export const GidModule: React.FC = () => {
           return hasMatchingDependent;
         });
       }
+
+      // Aplicar filtros de Impressão e Foto ao Plano Familiar
+      if (printFilter === 'PRINTED') {
+        list = list.filter((titular) => checkCardIsPrinted(titular));
+      } else if (printFilter === 'NOT_PRINTED') {
+        list = list.filter((titular) => !checkCardIsPrinted(titular));
+      }
+
+      if (photoFilter === 'WITH_PHOTO') {
+        list = list.filter((titular) => checkCardHasPhoto(titular));
+      } else if (photoFilter === 'WITHOUT_PHOTO') {
+        list = list.filter((titular) => !checkCardHasPhoto(titular));
+      }
     }
 
     return list.sort((a, b) => {
@@ -292,7 +351,7 @@ export const GidModule: React.FC = () => {
       if (numB !== numA) return numB - numA;
       return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
     });
-  }, [cards, gidSubTab, searchTerm, filteredCards]);
+  }, [cards, gidSubTab, searchTerm, printFilter, photoFilter, filteredCards]);
 
   // Open Notes editor for a card
   const handleOpenNotes = (card: CardData) => {
@@ -732,6 +791,164 @@ export const GidModule: React.FC = () => {
                 <span>Relatório de Vínculos</span>
               </button>
 
+              {/* ================= BOTÃO MENU: FILTRO (AJUSTE 03) ================= */}
+              <div className="relative" ref={filterMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsFilterMenuOpen((prev) => !prev)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                    printFilter !== 'ALL' || photoFilter !== 'ALL'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  }`}
+                  title="Filtrar por Status de Impressão e Fotos"
+                >
+                  <Filter className="w-3.5 h-3.5" />
+                  <span>Filtro</span>
+                  {(printFilter !== 'ALL' || photoFilter !== 'ALL') && (
+                    <span className="w-2 h-2 rounded-full bg-amber-300 animate-pulse" />
+                  )}
+                  <ChevronDown className={`w-3 h-3 transition-transform ${isFilterMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isFilterMenuOpen && (
+                  <div className="absolute right-0 mt-1 w-64 bg-white rounded-xl shadow-xl border border-slate-200 p-3 z-50 animate-in fade-in zoom-in-95 duration-100 space-y-3">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+                      <span className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                        <Filter className="w-3.5 h-3.5 text-blue-600" />
+                        Filtros de Exibição
+                      </span>
+                      {(printFilter !== 'ALL' || photoFilter !== 'ALL') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPrintFilter('ALL');
+                            setPhotoFilter('ALL');
+                          }}
+                          className="text-[10px] text-blue-600 hover:underline font-semibold cursor-pointer"
+                        >
+                          Limpar Filtros
+                        </button>
+                      )}
+                    </div>
+
+                    {/* 1. Status de Impressão */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
+                        Status de Impressão [ I ]:
+                      </label>
+                      <div className="grid grid-cols-1 gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setPrintFilter('ALL')}
+                          className={`px-2.5 py-1.5 rounded-lg text-left text-xs font-medium flex items-center justify-between transition-colors cursor-pointer ${
+                            printFilter === 'ALL'
+                              ? 'bg-blue-50 text-blue-800 font-bold'
+                              : 'text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>Todos os Cadastros</span>
+                          {printFilter === 'ALL' && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPrintFilter('PRINTED')}
+                          className={`px-2.5 py-1.5 rounded-lg text-left text-xs font-medium flex items-center justify-between transition-colors cursor-pointer ${
+                            printFilter === 'PRINTED'
+                              ? 'bg-emerald-50 text-emerald-800 font-bold'
+                              : 'text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="w-4 h-4 rounded-xs bg-emerald-600 text-white font-bold text-[9px] flex items-center justify-center shadow-2xs">
+                              I
+                            </span>
+                            <span>Já Impressos</span>
+                          </div>
+                          {printFilter === 'PRINTED' && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPrintFilter('NOT_PRINTED')}
+                          className={`px-2.5 py-1.5 rounded-lg text-left text-xs font-medium flex items-center justify-between transition-colors cursor-pointer ${
+                            printFilter === 'NOT_PRINTED'
+                              ? 'bg-red-50 text-red-800 font-bold'
+                              : 'text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="w-4 h-4 rounded-xs bg-red-600 text-white font-bold text-[9px] flex items-center justify-center shadow-2xs">
+                              I
+                            </span>
+                            <span>Não Impressos</span>
+                          </div>
+                          {printFilter === 'NOT_PRINTED' && <Check className="w-3.5 h-3.5 text-red-600" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 2. Status de Fotos */}
+                    <div className="pt-2 border-t border-slate-100">
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
+                        Status de Fotos [ F ]:
+                      </label>
+                      <div className="grid grid-cols-1 gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setPhotoFilter('ALL')}
+                          className={`px-2.5 py-1.5 rounded-lg text-left text-xs font-medium flex items-center justify-between transition-colors cursor-pointer ${
+                            photoFilter === 'ALL'
+                              ? 'bg-blue-50 text-blue-800 font-bold'
+                              : 'text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>Todos os Cadastros</span>
+                          {photoFilter === 'ALL' && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPhotoFilter('WITH_PHOTO')}
+                          className={`px-2.5 py-1.5 rounded-lg text-left text-xs font-medium flex items-center justify-between transition-colors cursor-pointer ${
+                            photoFilter === 'WITH_PHOTO'
+                              ? 'bg-emerald-50 text-emerald-800 font-bold'
+                              : 'text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="w-4 h-4 rounded-xs bg-emerald-600 text-white font-bold text-[9px] flex items-center justify-center shadow-2xs">
+                              F
+                            </span>
+                            <span>Com Fotos Carregadas</span>
+                          </div>
+                          {photoFilter === 'WITH_PHOTO' && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPhotoFilter('WITHOUT_PHOTO')}
+                          className={`px-2.5 py-1.5 rounded-lg text-left text-xs font-medium flex items-center justify-between transition-colors cursor-pointer ${
+                            photoFilter === 'WITHOUT_PHOTO'
+                              ? 'bg-red-50 text-red-800 font-bold'
+                              : 'text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="w-4 h-4 rounded-xs bg-red-600 text-white font-bold text-[9px] flex items-center justify-center shadow-2xs">
+                              F
+                            </span>
+                            <span>Sem Fotos / Pendente</span>
+                          </div>
+                          {photoFilter === 'WITHOUT_PHOTO' && <Check className="w-3.5 h-3.5 text-red-600" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <button
                 onClick={() => {
                   setNewMemberData({
@@ -771,6 +988,62 @@ export const GidModule: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* BANNER DE FILTROS ATIVOS (AJUSTE 03) */}
+          {(printFilter !== 'ALL' || photoFilter !== 'ALL') && (
+            <div className="bg-blue-50 border-b border-blue-200 px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-blue-900">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold flex items-center gap-1 text-blue-950">
+                  <Filter className="w-3.5 h-3.5 text-blue-600" />
+                  Filtros Ativos:
+                </span>
+                {printFilter !== 'ALL' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-blue-200 text-blue-800 shadow-2xs">
+                    <span className={`w-3.5 h-3.5 rounded-xs text-[9px] font-bold text-white flex items-center justify-center ${
+                      printFilter === 'PRINTED' ? 'bg-emerald-600' : 'bg-red-600'
+                    }`}>
+                      I
+                    </span>
+                    <span>{printFilter === 'PRINTED' ? 'Apenas Já Impressos' : 'Apenas Não Impressos'}</span>
+                    <button
+                      type="button"
+                      onClick={() => setPrintFilter('ALL')}
+                      className="text-slate-400 hover:text-slate-700 ml-0.5 cursor-pointer font-bold"
+                    >
+                      ×
+                    </button>
+                  </span>
+                )}
+                {photoFilter !== 'ALL' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-blue-200 text-blue-800 shadow-2xs">
+                    <span className={`w-3.5 h-3.5 rounded-xs text-[9px] font-bold text-white flex items-center justify-center ${
+                      photoFilter === 'WITH_PHOTO' ? 'bg-emerald-600' : 'bg-red-600'
+                    }`}>
+                      F
+                    </span>
+                    <span>{photoFilter === 'WITH_PHOTO' ? 'Apenas Com Fotos' : 'Apenas Sem Fotos'}</span>
+                    <button
+                      type="button"
+                      onClick={() => setPhotoFilter('ALL')}
+                      className="text-slate-400 hover:text-slate-700 ml-0.5 cursor-pointer font-bold"
+                    >
+                      ×
+                    </button>
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPrintFilter('ALL');
+                  setPhotoFilter('ALL');
+                }}
+                className="text-xs text-blue-700 hover:text-blue-900 font-bold underline cursor-pointer"
+              >
+                Limpar Todos os Filtros
+              </button>
+            </div>
+          )}
 
           {/* BANNER INFORMATIVO SE FOR PLANO ESPECIAL */}
           {gidSubTab === 'PLANO_ESPECIAL' && (
@@ -970,13 +1243,42 @@ export const GidModule: React.FC = () => {
                                   >
                                     <UserPlus className="w-3 h-3" /> + Dep.
                                   </button>
-                                  <button
-                                    onClick={() => openCardInGda(titular)}
-                                    className="px-2.5 py-1 bg-blue-600 text-white hover:bg-blue-700 rounded text-[11px] font-bold flex items-center gap-1 shadow-2xs"
-                                    title="Emitir/Imprimir Carteirinha no GDA"
-                                  >
-                                    <Printer className="w-3 h-3" /> Carteirinha
-                                  </button>
+                                  <div className="flex flex-col items-center">
+                                    <button
+                                      onClick={() => openCardInGda(titular)}
+                                      className="px-2.5 py-1 bg-blue-600 text-white hover:bg-blue-700 rounded text-[11px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
+                                      title="Emitir/Imprimir Carteirinha no GDA"
+                                    >
+                                      <Printer className="w-3 h-3" /> Carteirinha
+                                    </button>
+                                    {/* Indicadores [ F ] e [ I ] (Ajuste 02) */}
+                                    <div className="flex items-center justify-center gap-1 mt-1">
+                                      <span
+                                        className={`w-4 h-4 rounded-xs font-bold text-[9.5px] flex items-center justify-center text-white shadow-2xs select-none ${
+                                          checkCardHasPhoto(titular) ? 'bg-emerald-600' : 'bg-red-600'
+                                        }`}
+                                        title={
+                                          checkCardHasPhoto(titular)
+                                            ? 'Foto(s): Todas as fotos da família carregadas'
+                                            : 'Foto(s): Há fotos pendentes na família'
+                                        }
+                                      >
+                                        F
+                                      </span>
+                                      <span
+                                        className={`w-4 h-4 rounded-xs font-bold text-[9.5px] flex items-center justify-center text-white shadow-2xs select-none ${
+                                          checkCardIsPrinted(titular) ? 'bg-emerald-600' : 'bg-red-600'
+                                        }`}
+                                        title={
+                                          checkCardIsPrinted(titular)
+                                            ? 'Impressão: Carteirinha da família já impressa (Confirmada no GDA)'
+                                            : 'Impressão: Carteirinha da família não impressa'
+                                        }
+                                      >
+                                        I
+                                      </span>
+                                    </div>
+                                  </div>
                                   <button
                                     onClick={() => handleDeleteCard(titular)}
                                     className="p-1 text-slate-400 hover:text-red-600 rounded cursor-pointer"
@@ -1102,13 +1404,42 @@ export const GidModule: React.FC = () => {
                                       <Edit className="w-4 h-4" />
                                     </button>
 
-                                    <button
-                                      onClick={() => openCardInGda(dep)}
-                                      className="px-2 py-1 bg-slate-700 text-white hover:bg-slate-900 rounded text-[11px] font-medium flex items-center gap-1"
-                                      title="Emitir carteirinha deste dependente"
-                                    >
-                                      <Printer className="w-3 h-3" /> Imprimir
-                                    </button>
+                                    <div className="flex flex-col items-center">
+                                      <button
+                                        onClick={() => openCardInGda(dep)}
+                                        className="px-2 py-1 bg-slate-700 text-white hover:bg-slate-900 rounded text-[11px] font-medium flex items-center gap-1 cursor-pointer"
+                                        title="Emitir carteirinha deste dependente"
+                                      >
+                                        <Printer className="w-3 h-3" /> Imprimir
+                                      </button>
+                                      {/* Indicadores [ F ] e [ I ] (Ajuste 02) */}
+                                      <div className="flex items-center justify-center gap-1 mt-1">
+                                        <span
+                                          className={`w-4 h-4 rounded-xs font-bold text-[9.5px] flex items-center justify-center text-white shadow-2xs select-none ${
+                                            Boolean(dep.photoUrl && dep.photoUrl.trim()) ? 'bg-emerald-600' : 'bg-red-600'
+                                          }`}
+                                          title={
+                                            Boolean(dep.photoUrl && dep.photoUrl.trim())
+                                              ? 'Foto: Foto do dependente carregada'
+                                              : 'Foto: Dependente sem foto cadastrada'
+                                          }
+                                        >
+                                          F
+                                        </span>
+                                        <span
+                                          className={`w-4 h-4 rounded-xs font-bold text-[9.5px] flex items-center justify-center text-white shadow-2xs select-none ${
+                                            Boolean(dep.printConfirmed) ? 'bg-emerald-600' : 'bg-red-600'
+                                          }`}
+                                          title={
+                                            Boolean(dep.printConfirmed)
+                                              ? 'Impressão: Carteirinha já impressa (Confirmada no GDA)'
+                                              : 'Impressão: Carteirinha ainda não impressa'
+                                          }
+                                        >
+                                          I
+                                        </span>
+                                      </div>
+                                    </div>
                                     <button
                                       onClick={() => handleDeleteCard(dep)}
                                       className="p-1 text-slate-400 hover:text-red-600 rounded cursor-pointer"
@@ -1273,13 +1604,42 @@ export const GidModule: React.FC = () => {
                                   <Edit className="w-4 h-4" />
                                 </button>
 
-                                <button
-                                  onClick={() => openCardInGda(c)}
-                                  className="px-2.5 py-1 bg-blue-600 text-white hover:bg-blue-700 rounded text-[11px] font-bold flex items-center gap-1 shadow-2xs"
-                                  title="Emitir/Imprimir Carteirinha no GDA"
-                                >
-                                  <Printer className="w-3 h-3" /> Carteirinha
-                                </button>
+                                <div className="flex flex-col items-center">
+                                  <button
+                                    onClick={() => openCardInGda(c)}
+                                    className="px-2.5 py-1 bg-blue-600 text-white hover:bg-blue-700 rounded text-[11px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
+                                    title="Emitir/Imprimir Carteirinha no GDA"
+                                  >
+                                    <Printer className="w-3 h-3" /> Carteirinha
+                                  </button>
+                                  {/* Indicadores [ F ] e [ I ] (Ajuste 02) */}
+                                  <div className="flex items-center justify-center gap-1 mt-1">
+                                    <span
+                                      className={`w-4 h-4 rounded-xs font-bold text-[9.5px] flex items-center justify-center text-white shadow-2xs select-none ${
+                                        checkCardHasPhoto(c) ? 'bg-emerald-600' : 'bg-red-600'
+                                      }`}
+                                      title={
+                                        checkCardHasPhoto(c)
+                                          ? 'Foto: Foto do associado carregada'
+                                          : 'Foto: Associado sem foto carregada'
+                                      }
+                                    >
+                                      F
+                                    </span>
+                                    <span
+                                      className={`w-4 h-4 rounded-xs font-bold text-[9.5px] flex items-center justify-center text-white shadow-2xs select-none ${
+                                        checkCardIsPrinted(c) ? 'bg-emerald-600' : 'bg-red-600'
+                                      }`}
+                                      title={
+                                        checkCardIsPrinted(c)
+                                          ? 'Impressão: Carteirinha já impressa (Confirmada no GDA)'
+                                          : 'Impressão: Carteirinha ainda não impressa'
+                                      }
+                                    >
+                                      I
+                                    </span>
+                                  </div>
+                                </div>
                                 <button
                                   onClick={() => handleDeleteCard(c)}
                                   className="p-1 text-slate-400 hover:text-red-600 rounded cursor-pointer"
