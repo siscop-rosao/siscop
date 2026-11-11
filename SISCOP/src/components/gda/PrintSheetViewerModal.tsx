@@ -170,20 +170,39 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
       return frontCols;
     }
 
-    // 2. Determina as 4 colunas do Verso (Lado B) correspondendo 100% às FP's do Lado A
-    // Ao virar a folha na impressora, a Posição [X] (inferior) do Lado A vira Posição [Y] (superior) no Lado B,
-    // e a Posição [Y] (superior) do Lado A vira Posição [X] (inferior) no Lado B.
-    // Portanto, em cada coluna correspondente, os slots [X] e [Y] são rigorosamente invertidos (leftCard <-> rightCard).
+    // 2. Determina as 4 colunas do Verso (Lado B) correspondendo 100% às FP's do Lado A:
+    // "Toda FP que existir no lado A da folha, que exista também um FT no lado B da folha,
+    // correspondente ao alinhamento das FP's identificadas no lado A da folha."
+    // Regra Universal de Alinhamento Duplex:
+    // Ao virar a folha na impressora (borda longa / giro padrão):
+    // A coluna física se mantém (Coluna 0 <-> Coluna 0, Coluna 1 <-> Coluna 1...)
+    // E o alinhamento vertical dos slots inverte rigorosamente:
+    // Slot [X] no Lado A -> Slot [Y] no Lado B.
+    // Slot [Y] no Lado A -> Slot [X] no Lado B.
+    //
+    // Para quantidades ímpares (1, 3, 5 ou 7 carteirinhas):
+    // A carteirinha isolada no Lado A (que ocupa o slot [X]) terá obrigatoriamente
+    // a sua FT posicionada no slot oposto [Y] no Lado B, com o slot [X] ficando vazio.
+    // Assim, ao virar a folha na impressora, a FT sai sincronizada com a FP com 100% de precisão!
 
-    // Override manual se o usuário estiver em SINGLE_1X e tiver optado explicitamente por "Posição [X]":
-    if (printMode === 'SINGLE_1X' && singleVersoSlot === 'X') {
+    if (printMode === 'SINGLE_1X') {
       const card = activeCard || (allCards.length > 0 ? allCards[0] : null);
-      return [
-        { leftCard: card, rightCard: null },
-        { leftCard: null, rightCard: null },
-        { leftCard: null, rightCard: null },
-        { leftCard: null, rightCard: null },
-      ];
+      if (singleVersoSlot === 'X') {
+        return [
+          { leftCard: card, rightCard: null },
+          { leftCard: null, rightCard: null },
+          { leftCard: null, rightCard: null },
+          { leftCard: null, rightCard: null },
+        ];
+      } else {
+        // Alinhamento padrão: FP está em [X], logo no Verso a FT ocupa a Posição [Y]
+        return [
+          { leftCard: null, rightCard: card },
+          { leftCard: null, rightCard: null },
+          { leftCard: null, rightCard: null },
+          { leftCard: null, rightCard: null },
+        ];
+      }
     }
 
     if (duplexFlipMode === 'HORIZONTAL') {
@@ -196,7 +215,7 @@ export const PrintSheetViewerModal: React.FC<PrintSheetViewerModalProps> = ({
       ];
     } else {
       // Alinhamento Direto (Padrão de virada de folha da impressora: Coluna 0 <-> Coluna 0, Coluna 1 <-> Coluna 1)
-      // Cada coluna mapeia diretamente para si mesma, com o slot [X] do Lado A virando slot [Y] no Lado B:
+      // Toda FP em [X] gera FT em [Y]. Toda FP em [Y] gera FT em [X].
       return [
         { leftCard: frontCols[0].rightCard, rightCard: frontCols[0].leftCard },
         { leftCard: frontCols[1].rightCard, rightCard: frontCols[1].leftCard },
