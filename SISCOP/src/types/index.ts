@@ -164,6 +164,7 @@ export interface CardData {
   docJud?: boolean; // Vínculo com Documento Judicial (DOC JUD)
   procuracao?: ProcuracaoData; // Campo PROCURAÇÃO (outorgado, data calendário e autorizações)
   batchPrintSelected?: boolean; // Selecionado para Impressão em Lote (Plano Individual)
+  printConfirmed?: boolean; // Confirmação de Impressão (GDA) - Letra [ I ]
   status: 'ATIVO' | 'SUSPENSO' | 'INATIVO';
   medicalExamValidUntil?: string; // Exame médico para piscina
   createdAt: string;
