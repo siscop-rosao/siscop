@@ -151,6 +151,7 @@ export const GdaModule: React.FC = () => {
         physicalArchiveLocation: activeCard.physicalArchiveLocation || '',
         photoUrl: activeCard.photoUrl || '',
         batchPrintSelected: !!activeCard.batchPrintSelected,
+        printConfirmed: !!activeCard.printConfirmed,
       });
       setNumberValidationStatus('idle');
     }
@@ -296,6 +297,16 @@ export const GdaModule: React.FC = () => {
         // Replicar número do plano / controle se for plano familiar
         if (formData.controlNumber) {
           replicateControlNumberToFamily(formData.controlNumber.trim());
+        }
+
+        // Replicar confirmação de impressão se for plano familiar
+        if (formData.printConfirmed !== undefined) {
+          dependents.forEach((dep) => {
+            updateCard(dep.id, { printConfirmed: formData.printConfirmed });
+          });
+          if (titularCard.id !== activeCard.id) {
+            updateCard(titularCard.id, { printConfirmed: formData.printConfirmed });
+          }
         }
       }
 
@@ -875,6 +886,54 @@ export const GdaModule: React.FC = () => {
                 </label>
                 <span className="text-[10px] text-blue-700 block mt-1 leading-snug">
                   Ao marcar este checkbox, esta carteirinha é agrupada com as demais marcadas para preencher a folha A4 (limite de 4 carteirinhas por folha).
+                </span>
+              </div>
+
+              {/* ================= CONFIRMAÇÃO DE IMPRESSÃO (CHECKBOX - CONTROLE DA LETRA [ I ]) ================= */}
+              <div className={`border rounded-lg p-2.5 transition-all ${
+                formData.printConfirmed
+                  ? 'bg-emerald-50/80 border-emerald-300 shadow-2xs'
+                  : 'bg-slate-50 border-slate-200'
+              }`}>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={!!formData.printConfirmed}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setFormData((prev) => ({ ...prev, printConfirmed: checked }));
+                      if (activeCard) {
+                        updateCard(activeCard.id, { printConfirmed: checked });
+                        // Se for Plano Familiar, replica para todos os dependentes
+                        const isFam = formData.category === 'PLANO_FAMILIAR' || activeCard.planType === 'FAMILIAR';
+                        if (isFam && titularCard) {
+                          const dependents = cards.filter((c) => c.familyHeadId === titularCard.id);
+                          dependents.forEach((dep) => {
+                            updateCard(dep.id, { printConfirmed: checked });
+                          });
+                          if (titularCard.id !== activeCard.id) {
+                            updateCard(titularCard.id, { printConfirmed: checked });
+                          }
+                        }
+                      }
+                    }}
+                    className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                  />
+                  <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                    Confirmação de Impressão
+                  </span>
+                  {formData.printConfirmed ? (
+                    <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full font-bold ml-auto flex items-center gap-1 shadow-2xs">
+                      <CheckCircle className="w-3 h-3" /> Impresso [I]
+                    </span>
+                  ) : (
+                    <span className="text-[10px] bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-bold ml-auto border border-red-200">
+                      Não Impresso [I]
+                    </span>
+                  )}
+                </label>
+                <span className="text-[10px] text-slate-500 block mt-1 leading-snug">
+                  Ao marcar este checkbox, a plataforma identifica que a carteirinha já foi impressa. No GID, o indicador [ I ] ficará verde; se desmarcado, ficará vermelho.
                 </span>
               </div>
 
